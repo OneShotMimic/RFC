@@ -30,6 +30,7 @@ class Agent:
         self.sample_modules = [policy_net]
         self.update_modules = [policy_net, value_net]
 
+    # Sample can be done parallely ...
     def sample_worker(self, pid, queue, min_batch_size):
         torch.randn(pid)
         if hasattr(self.env, 'np_random'):

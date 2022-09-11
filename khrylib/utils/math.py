@@ -82,8 +82,11 @@ def transform_vec(v, q, trans='root'):
     return v
 
 
-def get_heading_q(q):
-    hq = q.copy()
+def get_heading_q(q)->np.ndarray:
+    if torch.is_tensor(q):
+        hq = q.cpu().numpy().copy()
+    else:
+        hq = q.copy()
     hq[1] = 0
     hq[2] = 0
     hq /= np.linalg.norm(hq)
@@ -123,7 +126,7 @@ def multi_quat_norm(nq):
     return nq_norm
 
 
-def quat_mul_vec(q, v):
+def quat_mul_vec(q:np.ndarray, v:np.ndarray):
     old_shape = v.shape
     v = v.reshape(-1, 3)
     v = v.dot(quaternion_matrix(q)[:3, :3].T)

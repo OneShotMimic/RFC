@@ -12,9 +12,25 @@ from khrylib.rl.agents import AgentPPO
 from khrylib.models.mlp import MLP
 from torch.utils.tensorboard import SummaryWriter
 from motion_imitation.envs.humanoid_im import HumanoidEnv
+from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
+from motion_imitation.dflex_reward_function import dflex_reward_func
 
+def estimate_obs_dim(cfg):
+    dofs = 32 # 32 joint dofs + 6 base dofs
+    base_dim = dofs + 5
+    if cfg.obs_heading: # Add root orientation quat
+        base_dim += 4
+    
+    if cfg.obs_vel == 'root':
+        base_dim += 6
+    elif cfg.obs_vel == 'full':
+        base_dim += dofs + 6
+
+    if cfg.obs_phase:
+        base_dim += 1
+    return base_dim
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None)
@@ -23,6 +39,7 @@ parser.add_argument('--test', action='store_true', default=False)
 parser.add_argument('--num_threads', type=int, default=20)
 parser.add_argument('--gpu_index', type=int, default=0)
 parser.add_argument('--iter', type=int, default=0)
+parser.add_argument('--use_dflex', action='store_true', default=False)
 parser.add_argument('--show_noise', action='store_true', default=False)
 args = parser.parse_args()
 if args.render:
@@ -31,18 +48,29 @@ cfg = Config(args.cfg, args.test, create_dirs=not (args.render or args.iter > 0)
 
 dtype = torch.float64
 torch.set_default_dtype(dtype)
-device = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
-if torch.cuda.is_available():
-    torch.cuda.set_device(args.gpu_index)
+#device = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device("cpu")
+# TODO: (Eric) GPU seems to suffers from memory access issue, need to debug with a mechine with larger memory.
+# if torch.cuda.is_available():
+#     torch.cuda.set_device(args.gpu_index)
 np.random.seed(cfg.seed)
 torch.manual_seed(cfg.seed)
 tb_logger = SummaryWriter(cfg.tb_dir) if not args.render else None
 logger = create_logger(os.path.join(cfg.log_dir, 'log.txt'), file_handle=not args.render)
 
 """environment"""
-env = HumanoidEnv(cfg)
+if args.use_dflex:
+    env = HumanoidDFlexEnv(cfg, 
+                           no_grad=True,  # Here requires no grad
+                           device = device, 
+                           MM_caching_frequency = 1,
+                           num_obs = estimate_obs_dim(cfg),
+                           num_act = 32 + 6) # dof + root wrench
+                           
+else:
+    env = HumanoidEnv(cfg)
 env.seed(cfg.seed)
-actuators = env.model.actuator_names
+#actuators = env.model.actuator_names
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 running_state = ZFilter((state_dim,), clip=5)
@@ -69,7 +97,11 @@ else:
     optimizer_value = torch.optim.SGD(value_net.parameters(), lr=cfg.value_lr, momentum=cfg.value_momentum, weight_decay=cfg.value_weightdecay)
 
 # reward functions
-expert_reward = reward_func[cfg.reward_id]
+if args.use_dflex:
+    expert_reward = dflex_reward_func[cfg.reward_id]
+else:
+    expert_reward = reward_func[cfg.reward_id]
+
 
 """create agent"""
 agent = AgentPPO(env=env, dtype=dtype, device=device, running_state=running_state,

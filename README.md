@@ -69,16 +69,15 @@ python motion_imitation/motion_im.py --cfg 0506 --num_threads <max_num_CPU_threa
 ```
 This will save models and logs into [results/motion_im/0506](results/motion_im/0506).
 
-# Citation
-If you find our work useful in your research, please cite our paper [RFC](https://www.ye-yuan.com/rfc):
-```bibtex
-@inproceedings{yuan2020residual,
-    title={Residual Force Control for Agile Human Behavior Imitation and Extended Motion Synthesis},
-    author={Yuan, Ye and Kitani, Kris},
-    booktitle={Advances in Neural Information Processing Systems},
-    year={2020}
-}
+### Setup dev environment
+Install Customized DFlex, this is the main backend package of differentiable physics simulator
+```
+cd dflex
+pip install -e .
 ```
 
-# License
-The software in this repo is freely available for free non-commercial use. Please see the [license](LICENSE) for further details.
+Install Customized pytorch_kinematics, this is a differentiable robotics kinematics module.
+```
+cd pytorch_kinematics
+pip install -e .
+```

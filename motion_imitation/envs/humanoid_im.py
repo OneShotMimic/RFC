@@ -23,6 +23,8 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         self.end_reward = 0.0
         self.start_ind = 0
         self.body_qposaddr = get_body_qposaddr(self.model)
+        print("qpos used: \n",self.body_qposaddr)
+        input()
         self.bquat = self.get_body_quat()
         self.prev_bquat = None
         self.set_model_params()
@@ -109,6 +111,8 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def get_body_quat(self):
         qpos = self.data.qpos.copy()
         body_quat = [qpos[3:7]]
+        print(self.model.body_names[1:], len(self.model.body_names[1:]))
+        input()
         for body in self.model.body_names[1:]:
             if body == 'root' or not body in self.body_qposaddr:
                 continue
@@ -116,8 +120,11 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
             euler = np.zeros(3)
             euler[:end - start] = qpos[start:end]
             quat = quaternion_from_euler(euler[0], euler[1], euler[2])
+            print(quat.shape)
             body_quat.append(quat)
         body_quat = np.concatenate(body_quat)
+        print(body_quat.shape)
+        input("Press to continue")
         return body_quat
 
     def get_com(self):
@@ -147,6 +154,7 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
 
         k_p = np.zeros(qvel.shape[0])
         k_d = np.zeros(qvel.shape[0])
+        # Dimension of cfg.jkp should equals to actuated joint number.
         k_p[6:] = cfg.jkp
         k_d[6:] = cfg.jkd
         qpos_err = np.concatenate((np.zeros(6), qpos[7:] + qvel[6:]*dt - target_pos))
