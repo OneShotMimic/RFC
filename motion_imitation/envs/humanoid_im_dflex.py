@@ -9,6 +9,7 @@ from khrylib.utils import *
 from khrylib.rl.utils import torch_utils as tu
 from khrylib.utils import load_utils as lu
 from motion_imitation.utils.tools import get_expert_dflex
+import pytorch_kinematics as pk
 import dflex as df
 try:
     from pxr import Usd
@@ -133,14 +134,20 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
             ee_pos = []
             qpos = self.state.joint_q
             root_pos = qpos[:3].clone().cpu().numpy()
-            root_q = qpos[3:7].clone().cpu().numpy()
+            q_root = qpos[3:7].clone().cpu()
+            q_heading = get_heading_q_torch(q_root)
+            root_rot = pk.quaternion_to_matrix(q_root).numpy()
+            deheading_rot = root_rot @ pk.quaternion_to_matrix(q_heading).numpy().T
             fk_input = dict(zip(self.joint_names[1:], qpos[7:]))
             ret_dict = self.kinematic_chain.forward_kinematics(fk_input)
+            # All result in return dict are expresed in local cooridnate
             for name in ee_name:
                 bone_vec = ret_dict[name].get_matrix()[:,:3,3].cpu().squeeze().numpy()
-                if transform is not None:
-                    bone_vec = bone_vec - root_pos
-                    bone_vec = transform_vec(bone_vec, root_q, transform)
+                # TODO: Need to map to world cooridnate first
+                if transform is None: # Map to world coordinate
+                    bone_vec = root_rot @ bone_vec + root_pos
+                elif transform == "heading": # Map to heading coordinate
+                    bone_vec = deheading_rot @ bone_vec
                 ee_pos.append(bone_vec)
         return np.concatenate(ee_pos)
 
@@ -298,6 +305,8 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
     def get_expert_attr(self, attr, ind):
         return self.expert[attr][ind, :]
 
+    # All body attached to flexible joints
+    # Dicard all fixed joint and fixed bodies.
     def get_bodyaddr(self):
         return {'root': (0, 7), 
                 'lfemur': (7, 10), 

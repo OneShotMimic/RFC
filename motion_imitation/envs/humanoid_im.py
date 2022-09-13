@@ -23,8 +23,6 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         self.end_reward = 0.0
         self.start_ind = 0
         self.body_qposaddr = get_body_qposaddr(self.model)
-        print("qpos used: \n",self.body_qposaddr)
-        input()
         self.bquat = self.get_body_quat()
         self.prev_bquat = None
         self.set_model_params()
@@ -102,9 +100,10 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         for name in ee_name:
             bone_id = self.model._body_name2id[name]
             bone_vec = self.data.body_xpos[bone_id]
-            if transform is not None:
-                bone_vec = bone_vec - root_pos
-                bone_vec = transform_vec(bone_vec, root_q, transform)
+            # In heading mode the vector is only
+            if transform is not None: # transform is a string, not a transformation matrix
+                bone_vec = bone_vec - root_pos # Each joint's relative position to root
+                bone_vec = transform_vec(bone_vec, root_q, transform) # Express different bone's location in local frame
             ee_pos.append(bone_vec)
         return np.concatenate(ee_pos)
 

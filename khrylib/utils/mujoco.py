@@ -1,6 +1,7 @@
 from khrylib.utils.math import *
 
 
+# Only return body attach to a unique flexible joint.
 def get_body_qposaddr(model):
     body_qposaddr = dict()
     for i, body_name in enumerate(model.body_names):
