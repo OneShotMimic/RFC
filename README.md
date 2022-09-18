@@ -75,9 +75,3 @@ Install Customized DFlex, this is the main backend package of differentiable phy
 cd dflex
 pip install -e .
 ```
-
-Install Customized pytorch_kinematics, this is a differentiable robotics kinematics module.
-```
-cd pytorch_kinematics
-pip install -e .
-```

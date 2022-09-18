@@ -44,7 +44,6 @@ class Agent:
                 state = self.running_state(state)
             logger.start_episode(self.env)
             self.pre_episode()
-
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0)
                 trans_out = self.trans_policy(state_var)
@@ -52,6 +51,7 @@ class Agent:
                 action = self.policy_net.select_action(trans_out, mean_action)[0].numpy()
                 action = int(action) if self.policy_net.type == 'discrete' else action.astype(np.float64)
                 next_state, env_reward, done, info = self.env.step(action)
+                #print("Next state shape:",next_state.shape)
                 if self.running_state is not None:
                     next_state = self.running_state(next_state)
                 # use custom or env reward

@@ -15,7 +15,6 @@ from motion_imitation.envs.humanoid_im import HumanoidEnv
 from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
-from motion_imitation.dflex_reward_function import dflex_reward_func
 
 def estimate_obs_dim(cfg):
     dofs = 32 # 32 joint dofs + 6 base dofs
@@ -97,10 +96,10 @@ else:
     optimizer_value = torch.optim.SGD(value_net.parameters(), lr=cfg.value_lr, momentum=cfg.value_momentum, weight_decay=cfg.value_weightdecay)
 
 # reward functions
-if args.use_dflex:
-    expert_reward = dflex_reward_func[cfg.reward_id]
-else:
-    expert_reward = reward_func[cfg.reward_id]
+# if args.use_dflex:
+#     expert_reward = dflex_reward_func[cfg.reward_id]
+# else:
+expert_reward = reward_func[cfg.reward_id]
 
 
 """create agent"""

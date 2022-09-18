@@ -27,7 +27,12 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         self.prev_bquat = None
         self.set_model_params()
         self.expert = None
+        print(self.model.joint_names)
+        print("Number of Joints:", len(self.model.joint_names))
+        ts = time.time()
         self.load_expert()
+        print(f"Take {time.time()-ts} to load expert")
+        #input("Press Enter to Continue")
         self.set_spaces()
 
     def load_expert(self):
@@ -110,8 +115,6 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def get_body_quat(self):
         qpos = self.data.qpos.copy()
         body_quat = [qpos[3:7]]
-        print(self.model.body_names[1:], len(self.model.body_names[1:]))
-        input()
         for body in self.model.body_names[1:]:
             if body == 'root' or not body in self.body_qposaddr:
                 continue
@@ -119,11 +122,8 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
             euler = np.zeros(3)
             euler[:end - start] = qpos[start:end]
             quat = quaternion_from_euler(euler[0], euler[1], euler[2])
-            print(quat.shape)
             body_quat.append(quat)
         body_quat = np.concatenate(body_quat)
-        print(body_quat.shape)
-        input("Press to continue")
         return body_quat
 
     def get_com(self):

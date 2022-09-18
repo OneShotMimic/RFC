@@ -15,7 +15,6 @@ class RunningStat(object):
             x = x.cpu().numpy().squeeze()
         else:
             x = x.squeeze()
-        print("Shape Info:", x.shape, self._M.shape)
         assert x.shape == self._M.shape
         self._n += 1
         if self._n == 1:

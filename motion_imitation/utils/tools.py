@@ -9,7 +9,7 @@ def get_expert(expert_qpos, expert_meta, env):
                  'com', 'head_pos', 'ee_pos', 'ee_wpos', 'bquat', 'bangvel'}
     for key in feat_keys:
         expert[key] = []
-
+    print("Expert Length:", expert_qpos.shape[0])
     for i in range(expert_qpos.shape[0]):
         qpos = expert_qpos[i]
         env.data.qpos[:] = qpos
@@ -20,6 +20,7 @@ def get_expert(expert_qpos, expert_meta, env):
         bquat = env.get_body_quat()
         com = env.get_com()
         head_pos = env.get_body_com('head').copy()
+        print("Head pos:", head_pos)
         if i > 0:
             prev_qpos = expert_qpos[i - 1]
             qvel = get_qvel_fd_new(prev_qpos, qpos, env.dt)
@@ -68,6 +69,7 @@ def get_expert_dflex(expert_qpos, expert_meta, env):
         expert[key] = []
 
     with torch.no_grad():
+        print("Expert Length:", expert_qpos.shape[0])
         for i in range(expert_qpos.shape[0]):
             qpos = expert_qpos[i]
             env.state.joint_q[:] = torch.from_numpy(qpos)
@@ -77,6 +79,7 @@ def get_expert_dflex(expert_qpos, expert_meta, env):
             bquat = env.get_body_quat()
             com = env.get_com()
             head_pos = env.get_body_com('head').copy()
+            print("Head pos:", head_pos)
             if i > 0:
                 prev_qpos = expert_qpos[i - 1]
                 qvel = get_qvel_fd_new(prev_qpos, qpos, env.dt)

@@ -43,7 +43,7 @@ reward_weights:
   k_ra: 0.1
 
 # expert and environment
-mujoco_model: mocap_v2
+mujoco_model: mocap_v2_no_user
 vis_model: mocap_v2_vis
 env_episode_len: 200
 env_term_body: 'root'

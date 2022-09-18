@@ -9,7 +9,9 @@ from khrylib.utils import *
 from khrylib.rl.utils import torch_utils as tu
 from khrylib.utils import load_utils as lu
 from motion_imitation.utils.tools import get_expert_dflex
-import pytorch_kinematics as pk
+
+from khrylib.utils.transformation import quaternion_from_euler
+
 import dflex as df
 try:
     from pxr import Usd
@@ -28,6 +30,7 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         # env specific
         self.end_reward = 0.0
         self.start_ind = 0
+        self.body_qposaddr = self.get_bodyaddr()
         self.bquat = self.get_body_quat()
         self.prev_bquat = None
         self.set_model_params()
@@ -35,6 +38,7 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         st = time.time()
         self.load_expert()
         print(f"Take {time.time() - st} to load expert")
+        #input("Press Enter to Continue")
 
     def build_model(self, fullpath):
         """
@@ -129,26 +133,21 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
     # By choosing different transforms, one can choose to express it in local or global coordinate
     # This may be problematic, we need to fingerout whether using local coordinate or global one.
     def get_ee_pos(self, transform)->np.ndarray:
-        with torch.no_grad():
-            ee_name = ['lfoot', 'rfoot', 'lwrist', 'rwrist', 'head']
-            ee_pos = []
-            qpos = self.state.joint_q
-            root_pos = qpos[:3].clone().cpu().numpy()
-            q_root = qpos[3:7].clone().cpu()
-            q_heading = get_heading_q_torch(q_root)
-            root_rot = pk.quaternion_to_matrix(q_root).numpy()
-            deheading_rot = root_rot @ pk.quaternion_to_matrix(q_heading).numpy().T
-            fk_input = dict(zip(self.joint_names[1:], qpos[7:]))
-            ret_dict = self.kinematic_chain.forward_kinematics(fk_input)
-            # All result in return dict are expresed in local cooridnate
-            for name in ee_name:
-                bone_vec = ret_dict[name].get_matrix()[:,:3,3].cpu().squeeze().numpy()
-                # TODO: Need to map to world cooridnate first
-                if transform is None: # Map to world coordinate
-                    bone_vec = root_rot @ bone_vec + root_pos
-                elif transform == "heading": # Map to heading coordinate
-                    bone_vec = deheading_rot @ bone_vec
-                ee_pos.append(bone_vec)
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(),
+                       self.state.joint_qd.detach().numpy().copy())
+        data = self.data
+        ee_name = ['lfoot', 'rfoot', 'lwrist', 'rwrist', 'head']
+        ee_pos = []
+        root_pos = data.qpos[:3]
+        root_q = data.qpos[3:7].copy()
+        for name in ee_name:
+            bone_id = self.mj_model._body_name2id[name]
+            bone_vec = self.data.body_xpos[bone_id]
+            # In heading mode the vector is only
+            if transform is not None: # transform is a string, not a transformation matrix
+                bone_vec = bone_vec - root_pos # Each joint's relative position to root
+                bone_vec = transform_vec(bone_vec, root_q, transform) # Express different bone's location in local frame
+            ee_pos.append(bone_vec)
         return np.concatenate(ee_pos)
 
     # Idea: Stable PD controller need to computed expected acceleration..
@@ -200,7 +199,6 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
 
     def do_simulation(self, action:torch.Tensor, n_frames:int):
         with torch.no_grad():
-            t0 = time.time()
             cfg = self.cfg
             
             ctrl = action.squeeze()
@@ -230,11 +228,14 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         self.prev_bquat = self.bquat.copy() # It is numpy
         # do simulation
         self.do_simulation(a, self.frame_skip)
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(),
+                          self.state.joint_qd.detach().numpy().copy())
         self.cur_t += 1
         self.bquat = self.get_body_quat()
         self.update_expert()
         # get obs
         head_pos = self.get_body_com('head')
+        #print("Head Pos:", head_pos)
         reward = 1.0
         if cfg.env_term_body == 'head':
             fail = self.expert is not None and head_pos[2] < self.expert['head_height_lb'] - 0.1
@@ -253,26 +254,26 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
             self.start_ind = ind
             init_pose = self.expert['qpos'][ind, :].copy()
             init_vel = self.expert['qvel'][ind, :].copy()
-            init_pose[7:] += self.np_random.normal(loc=0.0, scale=cfg.env_init_noise, size=len(self.state.joint_q[0]) - 7)
-            self.set_state(init_pose, init_vel)
+            init_pose[7:] += self.np_random.normal(loc=0.0, scale=cfg.env_init_noise, size=len(self.state.joint_q) - 7)
+            self.set_state(torch.from_numpy(init_pose), torch.from_numpy(init_vel))
             self.bquat = self.get_body_quat()
             self.update_expert()
         else:
-            init_pose = self.state.joint_q[0]
+            init_pose = self.state.joint_q
             init_pose[2] += 1.0
             self.set_state(init_pose, self.state.joint_qd[0])
         return self.get_obs()
 
-    def viewer_setup(self, mode='human'):
-        
-        if self.viewer is not None:
-            self.stage = Usd.Stage.CreateNew("outputs/" + "Humanoid_" + str(self.num_envs) + ".usd")
-
-            self.renderer = df.render.UsdRenderer(self.model, self.stage)
-            self.renderer.draw_points = True
-            self.renderer.draw_springs = True
-            self.renderer.draw_shapes = True
-            self.render_time = 0.0
+    def viewer_setup(self, mode):
+        self.mj_viewer.cam.trackbodyid = 1
+        self.mj_viewer.cam.lookat[:2] = self.data.qpos[:2]
+        if mode not in self.set_cam_first:
+            self.mj_viewer.video_fps = 33
+            self.mj_viewer.frame_skip = self.frame_skip
+            self.mj_viewer.cam.distance = self.model.stat.extent * 1.2
+            self.mj_viewer.cam.elevation = -20
+            self.mj_viewer.cam.azimuth = 45
+            self.set_cam_first.add(mode)
 
     def update_expert(self):
         expert = self.expert
@@ -304,6 +305,27 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
 
     def get_expert_attr(self, attr, ind):
         return self.expert[attr][ind, :]
+
+    def get_body_quat(self)->np.ndarray:
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(), 
+                       self.state.joint_qd.detach().numpy().copy())
+        qpos = self.data.qpos.copy()
+        body_quat = [qpos[3:7]]
+        for body in self.mj_model.body_names[1:]:
+            if body == 'root' or not body in self.body_qposaddr:
+                continue
+            start, end = self.body_qposaddr[body]
+            euler = np.zeros(3)
+            euler[:end - start] = qpos[start:end]
+            quat = quaternion_from_euler(euler[0], euler[1], euler[2])
+            body_quat.append(quat)
+        body_quat = np.concatenate(body_quat)
+        return body_quat
+
+    def get_com(self)->np.ndarray:
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(),
+                       self.state.joint_qd.detach().numpy().copy())
+        return self.data.subtree_com[0,:].copy()
 
     # All body attached to flexible joints
     # Dicard all fixed joint and fixed bodies.

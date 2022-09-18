@@ -1,13 +1,13 @@
 import os
-import sys
+import mujoco_py
 import copy
 import numpy as np
 import torch
 import dflex as df
 from gym import spaces
 from gym.utils import seeding
-import pytorch_kinematics as pk
 from pathlib import Path
+from khrylib.rl.envs.common.mjviewer import MjViewer
 
 DEFAULT_SIZE = 500
 
@@ -27,13 +27,9 @@ class DflexEnv:
         # This build model function should be implemented in subclass not this class
         # Should also include self.dt
         self.model, self.sim, self.state, self.dt = self.build_model(fullpath) # state is initial state
-        self.kinematic_chain = pk.build_chain_from_mjcf(open(fullpath).read())
-        self.kinematic_chain.to(dtype=torch.float32, device = self.device)
-        self.joint_names = self.kinematic_chain.get_joint_parameter_names()
         self.body_names = None
 
         self.viewer = None
-        self._viewers = {}
 
         self.obs_dim = None
         self.action_space = None
@@ -58,10 +54,22 @@ class DflexEnv:
         self.init_qpos = self.state.joint_q.cpu().clone()
         self.init_qvel = self.state.joint_qd.cpu().clone()
 
+        # Initialize mujoco sim
+        self.initialize_mujoco_sim("/home/ericcsr/oneshot/RFC/khrylib/assets/mujoco_models/mocap_v2_no_user.xml")
         self.prev_qpos = None
         self.prev_qvel = None
 
         self.seed()
+
+    def initialize_mujoco_sim(self, fullpath):
+        self.mj_model = mujoco_py.load_model_from_path(fullpath)
+        self.mj_sim = mujoco_py.MjSim(self.mj_model)
+        self.data = self.mj_sim.data
+        self.mj_viewer = None
+        self._mj_viewers = {}
+        self.init_qpos_mj = self.init_qpos.detach().numpy()
+        self.init_qvel_mj = self.init_qvel.detach().numpy()
+
 
     # Which have similar function to set space
     def initialize_properties(self, **kwargs):
@@ -100,6 +108,16 @@ class DflexEnv:
     def viewer_setup(self, mode):
         pass
 
+    def reset_mujoco(self):
+        self.mj_sim.reset()
+        ob = self.reset_model() # Unimplemented
+        old_viewer = self.mj_viewer
+        for mode, v in self._mj_viewers.items():
+            self.mj_viewer = v
+            self.viewer_setup(mode)
+        self.mj_viewer = old_viewer
+        return ob
+
     def reset(self):
         envs_id = torch.arange(self.num_environments, dtype=torch.long, device=self.device)
         self.cur_t = 0
@@ -107,13 +125,30 @@ class DflexEnv:
         self.state.joint_qd = self.init_qvel.clone()
         self.progress_buf[envs_id] = 0
         self.get_obs()
-        return self.obs_buf
+        mj_obs = self.reset_mujoco()
+        return self.obs_buf.squeeze()
 
     def set_state(self, qpos, qvel):
-        assert qpos.shape == self.init_qpos[0].shape
-        assert qvel.shape == self.init_qvel[0].shape
-        self.state.joint_q[0] = qpos
-        self.state.joint_qd[0] = qvel
+        assert qpos.shape == self.init_qpos.shape
+        assert qvel.shape == self.init_qvel.shape
+        self.state.joint_q = qpos
+        self.state.joint_qd = qvel
+        if torch.is_tensor(qpos):
+            qpos = qpos.detach().numpy().copy()
+        if torch.is_tensor(qvel):
+            qvel = qvel.detach().numpy().copy()
+        self.set_mj_state(qpos, qvel)
+
+    def set_mj_state(self, qpos, qvel):
+        '''
+        set mujoco sim state from numpy arrays
+        '''
+        old_state = self.mj_sim.get_state()
+        new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel,
+                                         old_state.act, old_state.udd_state)
+        self.mj_sim.set_state(new_state)
+        self.mj_sim.forward()
+        self.data = self.mj_sim.data
 
     def denormalize_action(self, action):
         neutral_action = (self.act_high+self.act_low) / 2
@@ -133,76 +168,56 @@ class DflexEnv:
 
     # TODO: (Eric) Implement render related features
     def render(self, mode="human", width=DEFAULT_SIZE, height=DEFAULT_SIZE):
-        pass
+        if mode == 'image':
+            self._get_viewer(mode).render(width, height)
+            data = self._get_viewer(mode).read_pixels(width, height, depth=False)
+            return data[::-1, :, [2, 1, 0]]
+        elif mode == 'human':
+            self._get_viewer(mode).render()
 
     def close(self):
-        pass
+        if self.mj_viewer is not None:
+            self.mj_viewer = None
+            self._mj_viewers = {}
 
     def _get_viewer(self, mode):
-        pass
+        self.mj_viewer = self._mj_viewers.get(mode)
+        if self.mj_viewer is None:
+            if mode == 'human':
+                self.mj_viewer = MjViewer(self.sim)
+            elif mode == 'image':
+                self.mj_viewer = mujoco_py.MjRenderContextOffscreen(self.mj_sim, 0)
+            self._mj_viewers[mode] = self.mj_viewer
+        self.viewer_setup(mode)
+        return self.mj_viewer
 
     def set_custom_key_callback(self, key_func):
-        pass
+        self._get_viewer('human').custom_key_callback = key_func
 
     def get_body_com(self, body_name)->np.ndarray:
-        # TODO: (Eric) need to ensure some order between joint angle and names
-        joint_angle = self.state.joint_q
-        fk_input = dict(zip(self.joint_names[1:], joint_angle[7:]))
-        return self.kinematic_chain.forward_kinematics(fk_input)[body_name].get_matrix()[:,:3, 3].detach().cpu().numpy()
-
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(), 
+                          self.state.joint_qd.detach().numpy().copy())
+        return self.data.get_body_xpos(body_name)
+        
     def state_vector(self)->np.ndarray:
-        return np.hstack([self.state.joint_q, self.state.joint_qd])
+        return np.hstack([self.state.joint_q.detach().numpy(), 
+                          self.state.joint_qd.detach().numpy()])
 
     # only express the orientation of a vector in world
     def vec_body2world(self, body_name, vec)->np.ndarray:
-        joint_angle = self.state.joint_q.clone()
-        fk_input = dict(zip(self.joint_names[1:], joint_angle[7:]))
-        rot = self.kinematic_chain.forward_kinematics(fk_input)[body_name].get_matrix().detach().cpu().numpy()[:,:3,:3]
-        vec_world = (rot @ vec[:,None]).ravel()
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(), 
+                          self.state.joint_qd.detach().numpy().copy())
+        body_xmat = self.data.get_body_xmat(body_name)
+        vec_world = (body_xmat @ vec[:,None]).ravel()
         return vec_world
 
     def pos_body2world(self, body_name, pos):
-        return self.get_body_com(body_name) + self.vec_body2world(body_name, pos)
-
-    # TODO: Matrix multiplication is suspecious..
-    # Notice that since we treat free joint as fixed joint, even root body's rotation need to rotated again.
-    def get_body_quat(self)->np.ndarray:
-        with torch.no_grad():
-            joint_angle = copy.deepcopy(self.state.joint_q).to(self.device)
-            root_rot = pk.quaternion_to_matrix(joint_angle[3:7])
-            fk_input = dict(zip(self.joint_names[1:], joint_angle[7:])) # Need to exclude fixed joint.
-            ret_dict = self.kinematic_chain.forward_kinematics(fk_input)
-            if self.body_names is None:
-                body_names = list(ret_dict.keys())
-                self.body_names = self.extract_proper_names(body_names)
-            quat_list = []
-            for bodyname in self.body_names:
-                if bodyname not in self.get_bodyaddr():
-                    continue
-                rot = ret_dict[bodyname].get_matrix()[:,:3,:3].squeeze()
-                quat = pk.matrix_to_quaternion(root_rot @ rot).detach().cpu().numpy()
-                quat_list.append(quat)
-        return np.concatenate(quat_list)
-
-    def get_com(self)->np.ndarray:
-        with torch.no_grad():
-            qpos = self.state.joint_q
-            body_mass = self.body_mass
-            root_pos = qpos[:3].cpu().numpy()
-            root_quat = qpos[3:7]
-            fk_input = dict(zip(self.joint_names[1:], qpos[7:]))
-            ret_dict = self.kinematic_chain.forward_kinematics(fk_input)
-            if self.body_names is None:
-                body_names = list(ret_dict.keys())
-                self.body_names = self.extract_proper_names(body_names)
-            total_mass = sum(body_mass)
-            weighted_pos = np.zeros(3)
-            for i, bodyname in enumerate(self.body_names):
-                rel_pos = ret_dict[bodyname].get_matrix()[:,:3,3].squeeze()
-                abs_pos = pk.quaternion_apply(root_quat, rel_pos).detach().cpu().numpy() + root_pos
-                weighted_pos += abs_pos * body_mass[i]
-            weighted_pos /= total_mass
-        return weighted_pos
+        self.set_mj_state(self.state.joint_q.detach().numpy().copy(), 
+                          self.state.joint_qd.detach().numpy().copy())
+        body_xpos = self.data.get_body_xpos(body_name)
+        body_xmat = self.data.get_body_xmat(body_name)
+        pos_world = (body_xmat @ pos[:, None]).ravel() + body_xpos
+        return pos_world
 
     def extract_proper_names(self,body_names):
         proper_name = []
