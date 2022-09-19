@@ -340,7 +340,6 @@ def parse_mjcf(
     def parse_body(body, parent, last_joint_pos):
 
         body_name = body.attrib["name"]
-        print("Load Body:", body_name)
         body_pos = np.fromstring(body.attrib["pos"], sep=" ")
         # last_joint_pos = np.zeros(3)
 
@@ -350,7 +349,6 @@ def parse_mjcf(
         for _, joint in enumerate(body.findall("joint")):
             
             joint_name = joint.attrib["name"]
-            print("Load Joint: ", joint_name)
             joint_type = type_map[joint.attrib.get("type", 'hinge')]
             joint_axis = parse_vec(joint, "axis", (0.0, 0.0, 0.0))
             joint_pos = parse_vec(joint, "pos", (0.0, 0.0, 0.0))
@@ -405,7 +403,6 @@ def parse_mjcf(
 
         for geom in body.findall("geom"):
             geom_name = geom.attrib["name"]
-            print("Load Geom:",geom_name)
             geom_type = geom.attrib["type"]
             geom_size = parse_vec(geom, "size", [1.0])                
             geom_pos = parse_vec(geom, "pos", (0.0, 0.0, 0.0)) 

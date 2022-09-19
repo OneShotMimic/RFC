@@ -1,18 +1,21 @@
 import multiprocessing
+from typing import List
 from khrylib.rl.core import LoggerRL, TrajBatch
 from khrylib.utils.memory import Memory
 from khrylib.utils.torch import *
+import mpi_utils.mpi_pytorch as mpith
 import math
 import time
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
-
 class Agent:
 
     def __init__(self, env, policy_net, value_net, dtype, device, gamma, custom_reward=None,
-                 end_reward=True, mean_action=False, render=False, running_state=None, num_threads=1):
-        self.env = env
+                 end_reward=True, mean_action=False, render=False, running_state=None, num_threads=1,
+                 seed=None):
+        self.env = env # Should be a environment
+        self.seed = seed
         self.policy_net = policy_net
         self.value_net = value_net
         self.dtype = dtype
@@ -31,53 +34,55 @@ class Agent:
         self.update_modules = [policy_net, value_net]
 
     # Sample can be done parallely ...
+    # We don't need to create worker everytime
     def sample_worker(self, pid, queue, min_batch_size):
-        torch.randn(pid)
+        env = self.env
+        env.seed(self.seed)
+        torch.manual_seed(pid)
         if hasattr(self.env, 'np_random'):
-            self.env.np_random.rand(pid)
+            env.np_random.rand(pid)
         memory = Memory()
         logger = self.logger_cls()
-
         while logger.num_steps < min_batch_size:
-            state = self.env.reset()
+            state = env.reset()
             if self.running_state is not None:
                 state = self.running_state(state)
-            logger.start_episode(self.env)
+            logger.start_episode(env)
             self.pre_episode()
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0)
                 trans_out = self.trans_policy(state_var)
-                mean_action = self.mean_action or self.env.np_random.binomial(1, 1 - self.noise_rate)
+                mean_action = self.mean_action or env.np_random.binomial(1, 1 - self.noise_rate)
                 action = self.policy_net.select_action(trans_out, mean_action)[0].numpy()
                 action = int(action) if self.policy_net.type == 'discrete' else action.astype(np.float64)
-                next_state, env_reward, done, info = self.env.step(action)
+                next_state, env_reward, done, info = env.step(action)
                 #print("Next state shape:",next_state.shape)
                 if self.running_state is not None:
                     next_state = self.running_state(next_state)
                 # use custom or env reward
                 if self.custom_reward is not None:
-                    c_reward, c_info = self.custom_reward(self.env, state, action, info)
+                    c_reward, c_info = self.custom_reward(env, state, action, info)
                     reward = c_reward
                 else:
                     c_reward, c_info = 0.0, np.array([0.0])
                     reward = env_reward
                 # add end reward
                 if self.end_reward and info.get('end', False):
-                    reward += self.env.end_reward
+                    reward += env.end_reward
                 # logging
-                logger.step(self.env, env_reward, c_reward, c_info, info)
+                logger.step(env, env_reward, c_reward, c_info, info)
 
                 mask = 0 if done else 1
                 exp = 1 - mean_action
                 self.push_memory(memory, state, action, mask, next_state, reward, exp)
 
                 if pid == 0 and self.render:
-                    self.env.render()
+                    env.render()
                 if done:
                     break
                 state = next_state
 
-            logger.end_episode(self.env)
+            logger.end_episode(env)
         logger.end_sampling()
 
         if queue is not None:
@@ -120,6 +125,24 @@ class Agent:
         logger.sample_time = time.time() - t_start
         return traj_batch, logger
 
+    # Only do what ever necessary for one process
+    def sample_mpi(self, min_batch_size):
+        t_start = time.time()
+        self.pre_sample()
+        to_test(*self.sample_modules)
+        # Synchronize parameters
+        mpith.sync_params(self.policy_net)
+        mpith.sync_params(self.value_net)
+        with to_cpu(*self.sample_modules):
+            with torch.no_grad():
+                thread_batch_size = int(math.floor(min_batch_size / self.num_threads))
+                memory, logger = self.sample_worker(0, None, thread_batch_size)
+                traj_batch = self.traj_cls([memory])
+        # TODO: Should synchronize logger
+        logger = self.logger_cls.merge_mpi(logger)
+        logger.sample_time = time.time() - t_start
+        return traj_batch, logger
+
     def trans_policy(self, states):
         """transform states before going into policy net"""
         return states
@@ -130,3 +153,6 @@ class Agent:
 
     def set_noise_rate(self, noise_rate):
         self.noise_rate = noise_rate
+
+    def set_end_reward(self, end_reward):
+        self.env.end_reward = end_reward
