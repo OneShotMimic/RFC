@@ -346,7 +346,7 @@ def parse_mjcf(
         #-----------------
         # add body for each joint, we assume the joints attached to one body have the same joint_pos
 
-        for _, joint in enumerate(body.findall("joint")):
+        for i, joint in enumerate(body.findall("joint")):
             
             joint_name = joint.attrib["name"]
             joint_type = type_map[joint.attrib.get("type", 'hinge')]
@@ -404,9 +404,10 @@ def parse_mjcf(
         for geom in body.findall("geom"):
             geom_name = geom.attrib["name"]
             geom_type = geom.attrib["type"]
+
             geom_size = parse_vec(geom, "size", [1.0])                
             geom_pos = parse_vec(geom, "pos", (0.0, 0.0, 0.0)) 
-            geom_rot = parse_vec(geom, "quat", (0.0, 0.0, 0.0, 1.0))
+            geom_rot = parse_vec(geom, "quat", (0.0, 0.0, 0.0, 1.0))[[1,2,3,0]]
 
             if (geom_type == "sphere"):
 
@@ -452,7 +453,7 @@ def parse_mjcf(
 
                     if ("quat" in geom.attrib):
                         q = parse_vec(geom, "quat", df.quat_identity())
-                        geom_rot = q
+                        geom_rot = q[[1,2,3,0]]
 
                     geom_rot = df.quat_multiply(geom_rot, df.quat_from_axis_angle((0.0, 1.0, 0.0), -math.pi*0.5))
 
@@ -472,9 +473,9 @@ def parse_mjcf(
                     link,
                     geom_pos - last_joint_pos, # position relative to the parent frame
                     geom_rot,
-                    geom_size[0]*0.5, # Because half extend?
-                    geom_size[1]*0.5, 
-                    geom_size[2]*0.5,
+                    geom_size[0], # Because half extend?
+                    geom_size[1], 
+                    geom_size[2],
                     ke=contact_ke,
                     kd=contact_kd,
                     kf=contact_kf,

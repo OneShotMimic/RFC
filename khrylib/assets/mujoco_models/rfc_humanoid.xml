@@ -1,0 +1,190 @@
+<mujoco model="humanoid">
+  <option timestep="0.00222222"/>
+  <size njmax="500" nconmax="100"/>
+  <visual>
+    <quality shadowsize="2048"/>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.8 0.8 0.8" specular="0.3 0.3 0.3"/>
+  </visual>
+  <statistic extent="3" center="0 0 1"/>
+  <default>
+    <motor ctrlrange="-1 1" ctrllimited="true"/>
+    <default class="body">
+      <geom  type="capsule" condim="1" friction="1.0 0.05 0.05" solimp=".9 .99 .003" solref=".015 1" material="self"/>
+      <joint limited="true" type="hinge" damping="0.1" stiffness="5" armature=".007" solimplimit="0 .99 .01"/>
+      <site size=".04" group="3"/>
+      <default class="force-torque">
+        <site type="box" size=".01 .01 .02" rgba="1 0 0 1" />
+      </default>
+      <default class="touch">
+        <site type="capsule" rgba="0 0 1 .3"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <texture type="2d" name="grid" builtin="checker" mark="edge" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4" markrgb="0.2 0.3 0.4" width="300" height="300"/>
+    <texture type="2d" name="grid_new" builtin="checker" rgb1="0.1 0.3 0.2" rgb2="0.2 0.4 0.3" markrgb="0.8 0.6 0.4" width="1000" height="1000"/>
+    <texture type="2d" name="texplane" builtin="checker" rgb1="0 0 0" rgb2="0.8 0.8 0.8" width="100" height="100"/>
+    <texture type="2d" name="grass" file="./common/grass.png"/>
+    <texture type="skybox" name="sky1" file="./common/sky1.png" gridsize="3 4" gridlayout=".U..LFRB.D.."/>
+    <texture type="cube" name="texgeom" builtin="flat" mark="cross" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" width="127" height="762"/>
+    <material name="grid" texture="grid" texuniform="true" reflectance="0.2"/>
+    <material name="grid_new" texture="grid_new" texuniform="true" texrepeat="0.2 0.2" reflectance="0.2"/>
+    <material name="MatPlane" texture="texplane" texrepeat="60 60" specular="1" shininess="1" reflectance="0.5"/>
+    <material name="GrassPlane" texture="grass" texrepeat="400 400" specular="1" shininess="1"/>
+    <material name="self" rgba="0.7 0.5 0.3 1"/>
+    <material name="self_default" rgba="0.7 0.5 0.3 1"/>
+    <material name="self_highlight" rgba="0 0.5 0.3 1"/>
+    <material name="effector" rgba="0.7 0.4 0.2 1"/>
+    <material name="effector_default" rgba="0.7 0.4 0.2 1"/>
+    <material name="effector_highlight" rgba="0 0.5 0.3 1"/>
+    <material name="decoration" rgba="0.3 0.5 0.7 1"/>
+    <material name="eye" rgba="0 0.2 1 1"/>
+    <material name="target" rgba="0.6 0.3 0.3 1"/>
+    <material name="target_default" rgba="0.6 0.3 0.3 1"/>
+    <material name="target_highlight" rgba="0.6 0.3 0.3 0.4"/>
+    <material name="expert" rgba="0.6 0.3 0.3 0.4"/>
+  </asset>
+  <worldbody>
+    <geom name="floor" size="100 100 0.2" type="plane" condim="3" friction="1 0.1 0.1" material="grid_new" rgba="0.8 0.9 0.8 1"/>
+    <!-- <light pos="0 0 1.3" dir="0 0 -1" directional="true" cutoff="100" exponent="1" diffuse="1 1 1" specular="0.1 0.1 0.1"/> -->
+    <body name="root" pos="0 0 0">
+      <joint name="root" limited="false" type="free" armature="0"/>
+      <geom size="0.11" pos="0 0 -0.024" type="sphere" name="geom1"/>
+      <body name="lhipjoint" pos="0 0 0">
+        <!-- <joint armature="0" damping="0" limited="false" name="lhipjoint_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+        <body name="lfemur" pos="0.0963 -0.0494 -0.0918">
+          <joint type="hinge" name="lfemur_z" pos="0 0 0" axis="0 -1 0" range="-1.0472 1.22173"/>
+          <joint type="hinge" name="lfemur_y" pos="0 0 0" axis="-0.342 0 0.9397" range="-1.22173 1.22173"/>
+          <joint type="hinge" name="lfemur_x" pos="0 0 0" axis="0.9397 0 0.342" range="-2.79253 0.349066"/>
+          <geom size="0.052 0.171713" pos="0.06555 0 -0.18015" quat="0.984797 0 -0.173711 0" type="capsule" name="geom2"/>
+          <body name="ltibia" pos="0.1311 0 -0.3603">
+            <joint type="hinge" name="ltibia_x" pos="0 0 0" axis="0.9397 0 0.342" range="0 2.96706"/>
+            <geom size="0.037 0.182183" pos="0.0692 0 -0.19" quat="0.984813 0 -0.173618 0" type="capsule" contype="1" conaffinity="1" name="geom3"/>
+            <body name="lfoot" pos="0.1383 0 -0.38">
+              <joint type="hinge" name="lfoot_z" pos="0 0 0" axis="-0.342 0 0.9397" range="-1.22173 0.349066"/>
+              <joint type="hinge" name="lfoot_y" pos="0 0 0" axis="0 -1 0" range="-0.785398 0.785398"/>
+              <joint type="hinge" name="lfoot_x" pos="0 0 0" axis="0.9397 0 0.342" range="-0.785398 1.5708"/>
+              <geom size="0.06 0.107 0.024" pos="0.0057 -0.0496 -0.0121" quat="0.984816 0 -0.173603 0" type="box" contype="1" conaffinity="1" name="geom4"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="rhipjoint" pos="0 0 0">
+        <!-- <joint armature="0" damping="0" limited="false" name="rhipjoint_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+        <body name="rfemur" pos="-0.0963 -0.0494 -0.0918">
+          <joint type="hinge" name="rfemur_z" pos="0 0 0" axis="0 -1 0" range="-1.22173 1.0472"/>
+          <joint type="hinge" name="rfemur_y" pos="0 0 0" axis="0.342 0 0.9397" range="-1.22173 1.22173"/>
+          <joint type="hinge" name="rfemur_x" pos="0 0 0" axis="0.9397 0 -0.342" range="-2.79253 0.349066"/>
+          <geom size="0.052 0.171713" pos="-0.06555 0 -0.18015" quat="0.984797 0 0.173711 0" type="capsule" name="geom5"/>
+          <body name="rtibia" pos="-0.1311 0 -0.3603">
+            <joint type="hinge" name="rtibia_x" pos="0 0 0" axis="0.9397 0 -0.342" range="0 2.96706"/>
+            <geom size="0.037 0.182183" pos="-0.0692 0 -0.19" quat="0.984813 0 0.173618 0" type="capsule" contype="2" conaffinity="2" name="geom6"/>
+            <body name="rfoot" pos="-0.1383 0 -0.38">
+              <joint type="hinge" name="rfoot_z" pos="0 0 0" axis="0.342 0 0.9397" range="-0.349066 1.22173"/>
+              <joint type="hinge" name="rfoot_y" pos="0 0 0" axis="0 -1 0" range="-0.785398 0.785398"/>
+              <joint type="hinge" name="rfoot_x" pos="0 0 0" axis="0.9397 0 -0.342" range="-0.785398 1.5708"/>
+              <geom size="0.06 0.107 0.024" pos="-0.0057 -0.0496 -0.0121" quat="0.984816 0 0.173603 0" type="box" contype="2" conaffinity="2" name="geom7"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="lowerback" pos="0 0 0">
+        <!-- <joint armature="0" damping="0" limited="false" name="lowerback_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+        <body name="upperback" pos="0.0006 0.0081 0.1132">
+          <joint type="hinge" name="upperback_z" pos="0 0 0" axis="0 -1 0" range="-0.523599 0.523599"/>
+          <joint type="hinge" name="upperback_y" pos="0 0 0" axis="0 0 1" range="-0.523599 0.523599"/>
+          <joint type="hinge" name="upperback_x" pos="0 0 0" axis="1 0 0" range="-0.349066 0.785398"/>
+          <geom size="0.07" pos="0 0 0.01" type="sphere" name="geom8"/>
+          <body name="thorax" pos="0.0005 -0.001 0.1136">
+            <!-- <joint armature="0" damping="0" limited="false" name="thorax_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+            <geom size="0.1" pos="0 0 0.054" type="sphere" name="geom9"/>
+            <body name="lowerneck" pos="-0.0001 -0.0047 0.1139">
+              <geom size="0.08" pos="-0.0033 -0.0107 0.2065" type="sphere" name="geom10"/>
+              <joint type="hinge" name="lowerneck_z" pos="0 0 0" axis="0 -1 0" range="-0.523599 0.523599"/>
+              <joint type="hinge" name="lowerneck_y" pos="0 0 0" axis="0 0 1" range="-0.523599 0.523599"/>
+              <joint type="hinge" name="lowerneck_x" pos="0 0 0" axis="1 0 0" range="-0.349066 0.785398"/>
+              <body name="upperneck" pos="-0.0033 -0.0107 0.0905">
+                <!-- <joint armature="0" damping="0" limited="false" name="upperneck_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+                <body name="head" pos="0.001 0.0045 0.09">
+                  <!-- <camera pos="0.0013 0.0038 -0.5212" quat="0 0 0.707107 0.707107"/> -->
+                </body>
+              </body>
+              <body name="lclavicle" pos="-0.0033 -0.0107 0.0905">
+                <geom size="0.034 0.0787335" pos="0.09065 -0.0033 -0.00955" quat="0.743231 -0.0239246 -0.668607 0" type="capsule" name="geom11"/>
+                <joint type="hinge" name="lclavicle_z" pos="0.0033 0.0107 -0.0905" axis="0 -1 0" range="0 0.349066"/>
+                <joint type="hinge" name="lclavicle_y" pos="0.0033 0.0107 -0.0905" axis="0 0 1" range="-0.349066 0.174533"/>
+                <body name="lhumerus" pos="0.1813 -0.0066 -0.0191">
+                  <joint type="hinge" name="lhumerus_z" pos="0 0 0" axis="0 0.866019 -0.500011" range="-1.5708 1.5708"/>
+                  <joint type="hinge" name="lhumerus_y" pos="0 0 0" axis="-1 0 0" range="-1.5708 1.5708"/>
+                  <joint type="hinge" name="lhumerus_x" pos="0 0 0" axis="0 -0.500011 -0.866019" range="-1.0472 1.5708"/>
+                  <geom size="0.031 0.12295" pos="0.14045 0 0" quat="0.707107 0 -0.707107 0" type="capsule" name="geom12"/>
+                  <body name="lradius" pos="0.2809 0 0">
+                    <geom size="0.025 0.08875" pos="0.08875 0 0" quat="0.707107 0 -0.707107 0" type="capsule" name="geom13"/>
+                    <joint type="hinge" name="lradius_x" pos="0 0 0" axis="0 -0.500011 -0.866019" range="-0.174533 2.96706"/>
+                    <body name="lwrist" pos="0.1775 0 0">
+                      <!-- <joint armature="0" damping="0" limited="false" name="lwrist_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+                      <geom size="0.04" pos="0.044 0 0" type="sphere" name="geom14"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+              <body name="rclavicle" pos="0.0013 -0.0107 0.0905">
+                <geom size="0.034 0.0787335" pos="-0.09065 -0.0033 -0.00955" quat="0.743231 -0.0239246 0.668607 0" type="capsule" name="geom15"/>
+                <joint type="hinge" name="rclavicle_z" pos="-0.0033 0.0107 -0.0905" axis="0 -1 0" range="-0.349066 0"/>
+                <joint type="hinge" name="rclavicle_y" pos="-0.0033 0.0107 -0.0905" axis="0 0 1" range="-0.174533 0.349066"/>
+                <body name="rhumerus" pos="-0.1813 -0.0066 -0.0191">
+                  <joint type="hinge" name="rhumerus_z" pos="0 0 0" axis="0 0.866019 -0.500011" range="-1.5708 1.5708"/>
+                  <joint type="hinge" name="rhumerus_y" pos="0 0 0" axis="1 0 0" range="-1.5708 1.5708"/>
+                  <joint type="hinge" name="rhumerus_x" pos="0 0 0" axis="0 0.500011 0.866019" range="-1.5708 1.0472"/>
+                  <geom size="0.031 0.12295" pos="-0.14045 0 0" quat="0.707107 0 0.707107 0" type="capsule" name="geom16"/>
+                  <body name="rradius" pos="-0.2809 0 0">
+                    <geom size="0.025 0.08875" pos="-0.08875 0 0" quat="0.707107 0 0.707107 0" type="capsule" name="geom17"/>
+                    <joint type="hinge" name="rradius_x" pos="0 0 0" axis="0 0.500011 0.866019" range="-0.174533 2.96706"/>
+                    <body name="rwrist" pos="-0.1775 0 0">
+                      <!-- <joint armature="0" damping="0" limited="false" name="rwrist_fixed" pos="0 0 0" stiffness="0" type="fixed"/> -->
+                      <geom size="0.04" pos="-0.044 0 0" type="sphere" name="geom18"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <general name="lfemur_z" joint="lfemur_z"/>
+    <general name="lfemur_y" joint="lfemur_y"/>
+    <general name="lfemur_x" joint="lfemur_x"/>
+    <general name="ltibia_x" joint="ltibia_x"/>
+    <general name="lfoot_z" joint="lfoot_z"/>
+    <general name="lfoot_y" joint="lfoot_y"/>
+    <general name="lfoot_x" joint="lfoot_x"/>
+    <general name="rfemur_z" joint="rfemur_z"/>
+    <general name="rfemur_y" joint="rfemur_y"/>
+    <general name="rfemur_x" joint="rfemur_x"/>
+    <general name="rtibia_x" joint="rtibia_x"/>
+    <general name="rfoot_z" joint="rfoot_z"/>
+    <general name="rfoot_y" joint="rfoot_y"/>
+    <general name="rfoot_x" joint="rfoot_x"/>
+    <general name="upperback_z" joint="upperback_z"/>
+    <general name="upperback_y" joint="upperback_y"/>
+    <general name="upperback_x" joint="upperback_x"/>
+    <general name="lowerneck_z" joint="lowerneck_z"/>
+    <general name="lowerneck_y" joint="lowerneck_y"/>
+    <general name="lowerneck_x" joint="lowerneck_x"/>
+    <general name="lclavicle_z" joint="lclavicle_z"/>
+    <general name="lclavicle_y" joint="lclavicle_y"/>
+    <general name="lhumerus_z" joint="lhumerus_z"/>
+    <general name="lhumerus_y" joint="lhumerus_y"/>
+    <general name="lhumerus_x" joint="lhumerus_x"/>
+    <general name="lradius_x" joint="lradius_x"/>
+    <general name="rclavicle_z" joint="rclavicle_z"/>
+    <general name="rclavicle_y" joint="rclavicle_y"/>
+    <general name="rhumerus_z" joint="rhumerus_z"/>
+    <general name="rhumerus_y" joint="rhumerus_y"/>
+    <general name="rhumerus_x" joint="rhumerus_x"/>
+    <general name="rradius_x" joint="rradius_x"/>
+  </actuator>
+</mujoco>

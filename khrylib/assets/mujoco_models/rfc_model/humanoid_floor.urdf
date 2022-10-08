@@ -1,0 +1,31 @@
+<?xml version="0.0" ?>
+<robot name="ground">
+	<link name="world"/>
+	<link name="floor">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 -0.10000"/>
+			<mass value="1.00000"/>
+			<inertia ixx="1.00000" ixy="0" ixz="0" iyy="1.00000" iyz="0" izz="1.00000"/>
+		</inertial>
+		<visual>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 -0.10000"/>
+			<geometry>
+				<box size="100 100 0.2"/>
+			</geometry>
+			<material name="grey">
+				<color rgba="0.2 0.2 0.2 1"/>
+			</material>
+		</visual>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 -0.10000"/>
+			<geometry>
+				<box size="100 100 0.2"/>
+			</geometry>
+		</collision>
+	</link>
+	<joint name="world_joint" type="fixed">
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+		<parent link="world"/>
+		<child link="floor"/>
+	</joint>
+</robot>

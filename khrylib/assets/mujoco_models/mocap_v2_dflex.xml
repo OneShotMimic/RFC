@@ -11,7 +11,7 @@
     <geom conaffinity="7" condim="1" contype="7" margin="0.001" material="self" rgba=".98 .54 .56 1."/>
   </default>
   
-  <statistic extent="3" center="0 0 1"/>
+  <statistic extent="2" center="0 0 1"/>
   <option timestep="0.00222222222"/>
   <asset>
     <texture type="skybox" file="/home/ericcsr/oneshot/RFC/khrylib/assets/mujoco_models/common/sky1.png" gridsize="3 4" gridlayout=".U..LFRB.D.." width="8192" height="8192"/>

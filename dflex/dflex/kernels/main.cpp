@@ -12841,7 +12841,7 @@ void eval_rigid_contacts_art_cpu_kernel_forward(
     var_21 = df::load(var_materials, var_20);
     var_22 = df::load(var_body_X_s, var_1);
     var_23 = df::load(var_body_v_s, var_1);
-    var_26 = df::float3(var_24, var_25, var_24);
+    var_26 = df::float3(var_24, var_24, var_25);
     var_27 = df::spatial_transform_point(var_22, var_2);
     var_28 = df::mul(var_26, var_3);
     var_29 = df::sub(var_27, var_28);
@@ -13076,7 +13076,7 @@ void eval_rigid_contacts_art_cpu_kernel_backward(
     var_21 = df::load(var_materials, var_20);
     var_22 = df::load(var_body_X_s, var_1);
     var_23 = df::load(var_body_v_s, var_1);
-    var_26 = df::float3(var_24, var_25, var_24);
+    var_26 = df::float3(var_24, var_24, var_25);
     var_27 = df::spatial_transform_point(var_22, var_2);
     var_28 = df::mul(var_26, var_3);
     var_29 = df::sub(var_27, var_28);
@@ -13172,7 +13172,7 @@ void eval_rigid_contacts_art_cpu_kernel_backward(
     df::adj_sub(var_27, var_28, adj_27, adj_28, adj_29);
     df::adj_mul(var_26, var_3, adj_26, adj_3, adj_28);
     df::adj_spatial_transform_point(var_22, var_2, adj_22, adj_2, adj_27);
-    df::adj_float3(var_24, var_25, var_24, adj_24, adj_25, adj_24, adj_26);
+    df::adj_float3(var_24, var_24, var_25, adj_24, adj_24, adj_25, adj_26);
     df::adj_load(var_body_v_s, var_1, adj_body_v_s, adj_1, adj_23);
     df::adj_load(var_body_X_s, var_1, adj_body_X_s, adj_1, adj_22);
     df::adj_load(var_materials, var_20, adj_materials, adj_20, adj_21);

@@ -14,29 +14,15 @@ from khrylib.models.mlp import MLP
 from torch.utils.tensorboard import SummaryWriter
 from motion_imitation.envs.humanoid_im import HumanoidEnv
 from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
+from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
 
 from mpi_utils.mpi_tools import mpi_fork, proc_id
 from mpi_utils.mpi_pytorch import setup_pytorch_for_mpi
 
-def estimate_obs_dim(cfg):
-    dofs = 32 # 32 joint dofs + 6 base dofs
-    base_dim = dofs + 5
-    if cfg.obs_heading: # Add root orientation quat
-        base_dim += 4
-    
-    if cfg.obs_vel == 'root':
-        base_dim += 6
-    elif cfg.obs_vel == 'full':
-        base_dim += dofs + 6
-
-    if cfg.obs_phase:
-        base_dim += 1
-    return base_dim
-
 def main_loop(args):
-    if args.use_dflex:
+    if args.simulator == "dflex":
         setup_pytorch_for_mpi()
     if args.render:
         args.num_threads = 1
@@ -55,15 +41,19 @@ def main_loop(args):
     logger = create_logger(os.path.join(cfg.log_dir, 'log.txt'), file_handle=not args.render)
 
     """environment"""
-    if args.use_dflex:
+    if args.simulator == "dflex":
         env = HumanoidDFlexEnv(cfg=cfg, 
                                 no_grad=True,  # Here requires no grad
                                 device = device, 
                                 MM_caching_frequency = 1,
                                 num_obs = estimate_obs_dim(cfg),
                                 num_act = 32 + 6) # dof + root wrench
-    else:
+    elif args.simulator == "mujoco":
         env = HumanoidEnv(cfg)
+    elif args.simulator == "nimble":
+        env = HumanoidNimbleEnv(cfg)
+    else:
+        raise NotImplementedError
     env.seed(cfg.seed)
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -90,10 +80,6 @@ def main_loop(args):
     else:
         optimizer_value = torch.optim.SGD(value_net.parameters(), lr=cfg.value_lr, momentum=cfg.value_momentum, weight_decay=cfg.value_weightdecay)
 
-    # reward functions
-    # if args.use_dflex:
-    #     expert_reward = dflex_reward_func[cfg.reward_id]
-    # else:
     expert_reward = reward_func[cfg.reward_id]
 
     """create agent"""
@@ -122,7 +108,7 @@ def main_loop(args):
         for i_iter in range(args.iter, cfg.max_iter_num):
             """generate multiple trajectories that reach the minimum batch_size"""
             pre_iter_update(i_iter)
-            if args.use_dflex:
+            if args.simulator == "dflex":
                 batch, log = agent.sample_mpi(cfg.min_batch_size)
             else:
                 batch, log = agent.sample(cfg.min_batch_size)
@@ -131,7 +117,7 @@ def main_loop(args):
 
             """update networks"""
             t0 = time.time()
-            if args.use_dflex:
+            if args.simulator == "dflex":
                 agent.update_params_mpi(batch)
             else:
                 agent.update_params(batch)
@@ -140,7 +126,7 @@ def main_loop(args):
             """logging"""
             c_info = log.avg_c_info
             # TODO: Need to find a way to synchronize statistics
-            if (not args.use_dflex) or (proc_id() == 0):
+            if (not args.simulator == "dflex") or (proc_id() == 0):
                 logger.info(
                     '{}\tT_sample {:.2f}\tT_update {:.2f}\tETA {}\texpert_R_avg {:.4f} {}'
                     '\texpert_R_range ({:.4f}, {:.4f})\teps_len {:.2f}'
@@ -176,9 +162,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_threads', type=int, default=20)
     parser.add_argument('--gpu_index', type=int, default=0)
     parser.add_argument('--iter', type=int, default=0)
-    parser.add_argument('--use_dflex', action='store_true', default=False)
+    parser.add_argument('--simulator', type=str, default="mujoco")
     parser.add_argument('--show_noise', action='store_true', default=False)
     args = parser.parse_args()
-    if args.use_dflex:
+    if args.simulator == "dflex":
         mpi_fork(args.num_threads)
     main_loop(args)

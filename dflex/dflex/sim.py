@@ -1161,7 +1161,7 @@ def eval_rigid_contacts_art(
     X_s = df.load(body_X_s, c_body)              # position of colliding body
     v_s = df.load(body_v_s, c_body)              # orientation of colliding body
 
-    n = float3(0.0, 1.0, 0.0)
+    n = float3(0.0, 0.0, 1.0)
 
     # transform point to world space
     p = df.spatial_transform_point(X_s, c_point) - n * c_dist  # add on 'thickness' of shape, e.g.: radius of sphere/capsule

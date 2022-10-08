@@ -13,7 +13,7 @@ DEFAULT_SIZE = 500
 
 class DflexEnv:
     def __init__(self, fullpath, frame_skip, **kwargs):
-        fullpath = "mocap_v2_dflex.xml"
+        fullpath = "rfc_humanoid.xml"
         if not  os.path.exists(fullpath):
             fullpath = os.path.join(Path(__file__).parent.parent.parent.parent, 'assets/mujoco_models', os.path.basename(fullpath))
             if not os.path.exists(fullpath):
@@ -55,7 +55,7 @@ class DflexEnv:
         self.init_qvel = self.state.joint_qd.cpu().clone()
 
         # Initialize mujoco sim
-        self.initialize_mujoco_sim("/home/ericcsr/oneshot/RFC/khrylib/assets/mujoco_models/mocap_v2_no_user.xml")
+        self.initialize_mujoco_sim("/home/ericcsr/oneshot/RFC/khrylib/assets/mujoco_models/mocap_v2.xml")
         self.prev_qpos = None
         self.prev_qvel = None
 
@@ -74,9 +74,8 @@ class DflexEnv:
     # Which have similar function to set space
     def initialize_properties(self, **kwargs):
         self.no_grad = kwargs["no_grad"]
-        self.device = kwargs["device"]
         df.config.no_grad = kwargs["no_grad"]
-
+        self.device = kwargs["device"]
         self.num_environments = 1
         assert(self.num_environments == 1)
         self.MM_caching_frequency = kwargs["MM_caching_frequency"]
@@ -121,8 +120,9 @@ class DflexEnv:
     def reset(self):
         envs_id = torch.arange(self.num_environments, dtype=torch.long, device=self.device)
         self.cur_t = 0
-        self.state.joint_q = self.init_qpos.clone()
-        self.state.joint_qd = self.init_qvel.clone()
+        #self.reset_model()
+        self.state.joint_q[:] = self.init_qpos.clone()
+        self.state.joint_qd[:] = self.init_qvel.clone()
         self.progress_buf[envs_id] = 0
         self.get_obs()
         mj_obs = self.reset_mujoco()
@@ -131,8 +131,10 @@ class DflexEnv:
     def set_state(self, qpos, qvel):
         assert qpos.shape == self.init_qpos.shape
         assert qvel.shape == self.init_qvel.shape
-        self.state.joint_q = qpos
-        self.state.joint_qd = qvel
+        qpos_dflex = qpos.clone()
+        qpos_dflex[[3,4,5,6]] = qpos_dflex[[4,5,6,3]]
+        self.state.joint_q[:] = qpos_dflex.clone()
+        self.state.joint_qd[:] = qvel.clone()
         if torch.is_tensor(qpos):
             qpos = qpos.detach().numpy().copy()
         if torch.is_tensor(qvel):
@@ -151,6 +153,7 @@ class DflexEnv:
         self.data = self.mj_sim.data
 
     def denormalize_action(self, action):
+        raise DeprecationWarning
         neutral_action = (self.act_high+self.act_low) / 2
         scale = (self.act_high - self.act_low)/2
         action += 1

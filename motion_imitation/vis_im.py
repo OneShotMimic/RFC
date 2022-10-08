@@ -13,6 +13,8 @@ from khrylib.rl.core.policy_gaussian import PolicyGaussian
 from khrylib.rl.core.critic import Value
 from khrylib.models.mlp import MLP
 from motion_imitation.envs.humanoid_im import HumanoidEnv
+from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
+from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 
 parser = argparse.ArgumentParser()
@@ -26,6 +28,7 @@ parser.add_argument('--record', action='store_true', default=False)
 parser.add_argument('--record_expert', action='store_true', default=False)
 parser.add_argument('--azimuth', type=float, default=45)
 parser.add_argument('--video_dir', default='out/videos/motion_im')
+parser.add_argument('--simulator', type=str, default="mujoco")
 args = parser.parse_args()
 cfg = Config(args.cfg, False, create_dirs=False)
 cfg.env_start_first = True
@@ -36,9 +39,18 @@ dtype = torch.float64
 torch.set_default_dtype(dtype)
 torch.manual_seed(cfg.seed)
 torch.set_grad_enabled(False)
-env = HumanoidEnv(cfg)
+if args.simulator == "dflex":
+    env = HumanoidDFlexEnv(cfg, 
+                           no_grad = True, 
+                           device = "cpu", 
+                           MM_caching_frequency=1,
+                           num_obs = estimate_obs_dim(cfg),
+                           num_act = 32 + 6)
+elif args.simulator == "mujoco":
+    env = HumanoidEnv(cfg)
+elif args.simulator == "nimble":
+    env = HumanoidNimbleEnv(cfg)
 env.seed(cfg.seed)
-actuators = env.model.actuator_names
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 
@@ -55,9 +67,13 @@ running_state = model_cp['running_state']
 
 class MyVisulizer(Visualizer):
 
-    def __init__(self, vis_file):
-        super().__init__(vis_file)
-        ngeom = len(env.model.geom_rgba) - 1
+    def __init__(self, vis_file, actions = None):
+        super().__init__(vis_file, actions)
+        if args.simulator in ["dflex", "nimble"]:
+            ngeom = len(env.mj_model.geom_rgba) - 1
+        else:
+            ngeom = len(env.model.geom_rgba) - 1
+            print("Time Step:",env.model.opt.timestep)
         self.env_vis.model.geom_rgba[ngeom + 21: ngeom * 2 + 21] = np.array([0.7, 0.0, 0.0, 1])
         self.env_vis.viewer.cam.lookat[2] = 1.0
         self.env_vis.viewer.cam.azimuth = args.azimuth
@@ -66,13 +82,15 @@ class MyVisulizer(Visualizer):
         self.T = 12
 
     def data_generator(self):
+        action_saved = False
         while True:
             poses = {'pred': [], 'gt': []}
             state = env.reset()
+            print("Reset State:",)
             if running_state is not None:
                 state = running_state(state, update=False)
-
-            for t in range(1000):
+            actions = []
+            for t in range(200):
                 epos = env.get_expert_attr('qpos', env.get_expert_index(t)).copy()
                 if env.expert['meta']['cyclic']:
                     init_pos = env.expert['init_pos']
@@ -81,29 +99,37 @@ class MyVisulizer(Visualizer):
                     epos[:3] = quat_mul_vec(cycle_h, epos[:3] - init_pos) + cycle_pos
                     epos[3:7] = quaternion_multiply(cycle_h, epos[3:7])
                 poses['gt'].append(epos)
-                poses['pred'].append(env.data.qpos.copy())
+                poses['pred'].append(env.data.qpos.copy()) # Should have no difference
                 state_var = tensor(state, dtype=dtype).unsqueeze(0)
-                action = policy_net.select_action(state_var, mean_action=True)[0].cpu().numpy()
+                if self.stored_actions is not None:
+                    action = self.stored_actions[t]
+                    print("here")
+                else:
+                    action = policy_net.select_action(state_var, mean_action=True)[0].cpu().numpy()
+                actions.append(action)
                 next_state, reward, done, _ = env.step(action)
+                print("t:",t)
                 if running_state is not None:
                     next_state = running_state(next_state, update=False)
                 if done:
-                    break
+                    pass
                 state = next_state
-
+            if action_saved == False and self.stored_actions is None:
+                np.save("actions.npy", actions)
             poses['gt'] = np.vstack(poses['gt'])
             poses['pred'] = np.vstack(poses['pred'])
             self.num_fr = poses['pred'].shape[0]
             yield poses
 
     def update_pose(self):
-        self.env_vis.data.qpos[:env.model.nq] = self.data['pred'][self.fr]
-        self.env_vis.data.qpos[env.model.nq:] = self.data['gt'][self.fr]
-        self.env_vis.data.qpos[env.model.nq] += 1.0
+        model = env.mj_model if args.simulator in ["dflex", "nimble"] else env.model
+        self.env_vis.data.qpos[:model.nq] = self.data['pred'][self.fr]
+        self.env_vis.data.qpos[model.nq:] = self.data['gt'][self.fr]
+        self.env_vis.data.qpos[model.nq] += 1.0
         if args.record_expert:
-            self.env_vis.data.qpos[:env.model.nq] = self.data['gt'][self.fr]
+            self.env_vis.data.qpos[:model.nq] = self.data['gt'][self.fr]
         if args.hide_expert:
-            self.env_vis.data.qpos[env.model.nq + 2] = 100.0
+            self.env_vis.data.qpos[model.nq + 2] = 100.0
         if args.focus:
             self.env_vis.viewer.cam.lookat[:2] = self.env_vis.data.qpos[:2]
         self.env_vis.sim_forward()
@@ -131,7 +157,7 @@ class MyVisulizer(Visualizer):
 
 
 
-vis = MyVisulizer(f'{args.vis_model_file}.xml')
+vis = MyVisulizer(f'{args.vis_model_file}.xml', actions = None)
 
 if args.record:
     vis.record_video()

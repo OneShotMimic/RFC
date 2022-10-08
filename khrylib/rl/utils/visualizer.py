@@ -5,7 +5,7 @@ import math
 
 class Visualizer:
 
-    def __init__(self, vis_file):
+    def __init__(self, vis_file, actions = None):
         self.fr = 0
         self.num_fr = 0
         self.T_arr = [1, 2, 4, 6, 8, 10, 12, 15, 20, 30, 40, 50, 60]
@@ -13,6 +13,7 @@ class Visualizer:
         self.paused = False
         self.reverse = False
         self.repeat = False
+        self.stored_actions = actions
         self.data_gen = self.data_generator()
         self.data = next(self.data_gen)
         self.vis_file = vis_file

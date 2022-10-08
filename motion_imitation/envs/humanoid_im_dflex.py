@@ -1,6 +1,5 @@
 import os
 import sys
-from turtle import heading
 sys.path.append(os.getcwd())
 
 from khrylib.rl.envs.common import dflex_env
@@ -23,7 +22,7 @@ import time
 class HumanoidDFlexEnv(dflex_env.DflexEnv):
 
     def __init__(self, cfg, **kwargs):
-        dflex_env.DflexEnv.__init__(self, cfg.mujoco_model_file, 15, **kwargs)
+        dflex_env.DflexEnv.__init__(self, cfg.mujoco_model_file, 48, **kwargs)
         self.vf_dim = 6
         self.cfg = cfg
         self.set_cam_first = set()
@@ -47,26 +46,25 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         model, integrator(sim), state, dt
         """
         builder = df.sim.ModelBuilder()
-        dt = 1.0 / 60.0
+        dt = 1.0 / (60.0 * self.frame_skip)
         
         ground = True
 
         # TODO: Need closer inspection to see whether it is correct number or not.
-        start_rot = df.quat_from_axis_angle((1.0, 0.0, 0.0), -math.pi*0.5)
+        start_rot = df.quat_from_axis_angle((1.0, 0.0, 0.0), 0)
 
         # The world directional convension are hard-coded?
 
         start_pos = []
 
         # TODO: Need closer inspection to see whether it is correct number or not.
-        start_height = 1.35
 
         asset_folder = os.path.join(os.path.dirname(__file__), '../../khrylib/assets/mujoco_models')
 
         # Load MJCF model
-        lu.parse_mjcf(os.path.join(asset_folder, "mocap_v2_dflex.xml"), builder,
+        lu.parse_mjcf(os.path.join(asset_folder, "rfc_humanoid.xml"), builder,
         stiffness = 0.0,
-        damping=0.0,
+        damping=0.1,
         contact_ke = 2.e+4,
         contact_kd = 5.e+3,
         contact_kf = 1.e+3,
@@ -77,19 +75,23 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         load_stiffness = True,
         load_armature=True)
 
-        start_pos_z = 0.0
-        start_pos.append([0.0, start_height, start_pos_z])
+        start_pos_z = 3.0
+        start_pos.append([0.0, 0.0, start_pos_z])
 
         builder.joint_q[:3] = start_pos[-1]
         builder.joint_q[3:7] = start_rot
+        print("Builder q:", builder.joint_q, type(self.device), self.device)
         
         model = builder.finalize(self.device)
         model.ground = ground
-        model.gravity = torch.tensor((0.0, -9.81, 0.0), dtype = torch.float32, device = self.device)
+        model.gravity = torch.tensor((0.0, 0, -9.81), dtype = torch.float32, device = torch.device(self.device))
         self.body_mass = builder.body_mass
         
         sim = df.sim.SemiImplicitIntegrator()
         state = model.state() # Should be initial state
+        # Seems to be an invalid number...
+        print("Start q:", state.joint_q)
+        #input()
         model.collide(state)
         return model, sim, state, dt
 
@@ -198,26 +200,31 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         self.state.joint_act[:vf.shape[0]] = torch.from_numpy(vf).to(self.device)
 
     def do_simulation(self, action:torch.Tensor, n_frames:int):
-        with torch.no_grad():
-            cfg = self.cfg
-            
-            ctrl = action.squeeze()
-            torque = self.compute_torque(ctrl)
-            torque = torch.clip(torque, torch.from_numpy(-cfg.torque_lim).to(self.device), torch.from_numpy(cfg.torque_lim).to(self.device))
-            # TODO: May need to extend actuatable joint including root
-            self.state.joint_act[6:] = torque
+        # with torch.no_grad():
+        cfg = self.cfg
+        
+        ctrl = action.squeeze()
+        torque = self.compute_torque(ctrl)
+        torque = torch.clip(torque, torch.from_numpy(-cfg.torque_lim).to(self.device), torch.from_numpy(cfg.torque_lim).to(self.device))
+        # TODO: May need to extend actuatable joint including root
+        self.state.joint_act[6:] = torque 
 
-            """ Residual Force Control (RFC) """
-            if cfg.residual_force:
-                vf = ctrl[-self.vf_dim:].copy()
-                if cfg.residual_force_mode == 'implicit':
-                    self.rfc_implicit(vf)
-                else:
-                    raise NotImplementedError
-            self.state.joint_q = self.state.joint_q.contiguous()
-            self.state.joint_qd = self.state.joint_qd.contiguous()
-            self.state.joint_act = self.state.joint_act.contiguous()
-            self.state = self.sim.forward(self.model, self.state, self.dt, n_frames, self.MM_caching_frequency)
+        """ Residual Force Control (RFC) """
+        if cfg.residual_force:
+            vf = ctrl[-self.vf_dim:].copy()
+            if cfg.residual_force_mode == 'implicit':
+                self.rfc_implicit(vf)
+            else:
+                raise NotImplementedError
+        # self.state.joint_q = self.state.joint_q
+        # self.state.joint_qd = self.state.joint_qd
+        #self.state.joint_act = torch.zeros_like(self.state.joint_act)
+        # print("Action:",self.state.joint_act, self.state.joint_act.shape)
+        # input()
+        # print(self.state.joint_q, self.state.joint_qd)
+        # input()
+        self.state = self.sim.forward(self.model, self.state, 1.0/60.0, 48, self.MM_caching_frequency)
+        #print("q:",self.state.joint_q)
 
     # Need to implement carefully
     def step(self, a:torch.Tensor):
@@ -247,21 +254,21 @@ class HumanoidDFlexEnv(dflex_env.DflexEnv):
         obs = self.get_obs()
         return obs, reward, done, {'fail': fail, 'end': end}
 
+    # This function is problematic
     def reset_model(self):
         cfg = self.cfg
         if self.expert is not None:
             ind = 0 if self.cfg.env_start_first else self.np_random.randint(self.expert['len'])
             self.start_ind = ind
             init_pose = self.expert['qpos'][ind, :].copy()
+            init_pose[2] += 1.5
             init_vel = self.expert['qvel'][ind, :].copy()
             init_pose[7:] += self.np_random.normal(loc=0.0, scale=cfg.env_init_noise, size=len(self.state.joint_q) - 7)
             self.set_state(torch.from_numpy(init_pose), torch.from_numpy(init_vel))
             self.bquat = self.get_body_quat()
             self.update_expert()
-        else:
-            init_pose = self.state.joint_q
-            init_pose[2] += 1.0
-            self.set_state(init_pose, self.state.joint_qd[0])
+        else: # Why?
+            self.set_state(self.init_qpos, self.init_qvel)
         return self.get_obs()
 
     def viewer_setup(self, mode):
