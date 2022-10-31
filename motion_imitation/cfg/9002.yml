@@ -1,5 +1,5 @@
 # data
-motion_id: '90_02'
+motion_id: ['90_02']
 
 # training parameters
 gamma: 0.95

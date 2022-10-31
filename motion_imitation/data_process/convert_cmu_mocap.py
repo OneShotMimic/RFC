@@ -146,6 +146,8 @@ def visualize():
             print(offset_z)
         elif key == glfw.KEY_SPACE:
             paused = not paused
+        elif key == glfw.KEY_L:
+            cyclic=True
         else:
             return False
 
@@ -158,12 +160,14 @@ def visualize():
     viewer.cam.distance = 5.0
     viewer.cam.lookat[2] = 1.0
     t = 0
+    offset_zs = np.linspace(-0.05,-0.14,expert_traj.shape[0])
+    print("Trajectory Length:",expert_traj.shape[0])
     while not stop:
         if t >= math.floor(T):
             fr = (fr+1) % expert_traj.shape[0]
             t = 0
         sim.data.qpos[:] = expert_traj[fr]
-        sim.data.qpos[2] += offset_z
+        sim.data.qpos[2] += offset_zs[fr]
         sim.forward()
         viewer.cam.lookat[:2] = sim.data.qpos[:2]
         viewer.render()

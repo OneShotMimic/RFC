@@ -1,5 +1,5 @@
 # data
-motion_id: '05_06'
+motion_id: ['05_06']
 
 # training parameters
 gamma: 0.95
@@ -43,7 +43,7 @@ reward_weights:
   k_ra: 0.1
 
 # expert and environment
-mujoco_model: rfc_humanoid_mujoco
+mujoco_model: mocap_v2
 vis_model: mocap_v2_vis
 env_episode_len: 200
 env_term_body: 'root'

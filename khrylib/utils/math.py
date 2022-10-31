@@ -68,11 +68,6 @@ def get_angvel_fd(prev_bquat, cur_bquat, dt):
 
 
 def transform_vec(v, q, trans='root'):
-    '''
-    Rotate the vector according to trans instruction and q
-    root: rotate according to full root orientation. including roll and pitch
-    heading: only rotate according to root's yaw orientation.
-    '''
     if trans == 'root':
         rot = quaternion_matrix(q)[:3, :3]
     elif trans == 'heading':
@@ -87,21 +82,11 @@ def transform_vec(v, q, trans='root'):
     return v
 
 
-def get_heading_q(q)->np.ndarray:
-    if torch.is_tensor(q):
-        hq = q.cpu().numpy().copy()
-    else:
-        hq = q.copy()
+def get_heading_q(q):
+    hq = q.copy()
     hq[1] = 0
     hq[2] = 0
     hq /= np.linalg.norm(hq)
-    return hq
-
-def get_heading_q_torch(q)->np.ndarray:
-    hq = q.clone()
-    hq[1] = 0
-    hq[2] = 0
-    hq /= torch.norm(hq)
     return hq
 
 
@@ -138,7 +123,7 @@ def multi_quat_norm(nq):
     return nq_norm
 
 
-def quat_mul_vec(q:np.ndarray, v:np.ndarray):
+def quat_mul_vec(q, v):
     old_shape = v.shape
     v = v.reshape(-1, 3)
     v = v.dot(quaternion_matrix(q)[:3, :3].T)

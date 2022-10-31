@@ -1,5 +1,5 @@
 import numpy as np
-import torch
+
 # from https://github.com/joschu/modular_rl
 # http://www.johndcook.com/blog/standard_deviation/
 
@@ -11,10 +11,7 @@ class RunningStat(object):
         self._S = np.zeros(shape)
 
     def push(self, x):
-        if torch.is_tensor(x):
-            x = x.cpu().numpy().squeeze()
-        else:
-            x = x.squeeze()
+        x = np.asarray(x)
         assert x.shape == self._M.shape
         self._n += 1
         if self._n == 1:
@@ -59,8 +56,6 @@ class ZFilter:
         self.rs = RunningStat(shape)
 
     def __call__(self, x, update=True):
-        if torch.is_tensor(x):
-            x = x.cpu().numpy()
         if update:
             self.rs.push(x)
         if self.demean:

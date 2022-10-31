@@ -32,7 +32,7 @@ class Config:
 
         # expert
         self.motion_id = cfg['motion_id']
-        self.expert_traj_file = f'data/cmu_mocap/motion/{self.motion_id}.p'
+        self.expert_traj_files = [f'data/cmu_mocap/motion/{self.motion_id[i]}.p' for i in range(len(self.motion_id))]
 
         # training config
         self.gamma = cfg.get('gamma', 0.95)

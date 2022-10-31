@@ -1,7 +1,7 @@
 import torch
 from torch.distributions import Normal
 from torch.distributions import Categorical as TorchCategorical
-
+from torch.distributions import MixtureSameFamily, Independent
 
 class DiagGaussian(Normal):
 
@@ -45,3 +45,18 @@ class Categorical(TorchCategorical):
 
     def mean_sample(self):
         return self.probs.argmax(dim=1)
+
+class MixtureOfGaussian(MixtureSameFamily):
+    def __init__(self, loc, scale, probs=None, logits=None): # loc, scale : [batch_size, num_mixture, action_dim]
+        super().__init__(TorchCategorical(probs, logits), Independent(Normal(loc, scale),1))
+
+    def kl(self):
+        raise NotImplementedError
+
+    def log_prob(self, value): 
+        return super().log_prob(value).unsqueeze(1)
+
+    def mean_sample(self):
+        return self.mean
+
+

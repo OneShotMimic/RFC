@@ -211,7 +211,7 @@ def local_rfc_explicit_reward(env, state, action, info):
     cur_rlinv_local = cur_qvel[:3]
     cur_rangv = cur_qvel[3:6]
     cur_rq_rmh = de_heading(cur_qpos[3:7])
-    cur_ee = env.get_ee_pos(cfg.obs_coord) # By default it is heading
+    cur_ee = env.get_ee_pos(cfg.obs_coord)
     cur_bquat = env.get_body_quat()
     cur_bangvel = get_angvel_fd(prev_bquat, cur_bquat, env.dt)
     # expert

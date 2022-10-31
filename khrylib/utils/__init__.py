@@ -5,4 +5,3 @@ from khrylib.utils.math import *
 from khrylib.utils.tools import *
 from khrylib.utils.logger import *
 from khrylib.utils.mujoco import *
-from khrylib.utils.dflex_utils import *

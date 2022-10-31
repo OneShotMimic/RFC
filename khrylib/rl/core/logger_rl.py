@@ -1,5 +1,5 @@
 import math
-from mpi_utils.mpi_tools import mpi_min, mpi_max, mpi_avg, mpi_sum
+
 
 class LoggerRL:
 
@@ -62,26 +62,6 @@ class LoggerRL:
         logger.max_c_reward = max([x.max_c_reward for x in logger_list])
         logger.min_c_reward = min([x.min_c_reward for x in logger_list])
         logger.total_c_info = sum([x.total_c_info for x in logger_list])
-        logger.avg_c_info = logger.total_c_info / logger.num_steps
-        logger.avg_episode_c_reward = logger.total_c_reward / logger.num_episodes
-        logger.avg_episode_c_info = logger.total_c_info / logger.num_episodes
-        return logger
-
-    @classmethod
-    def merge_mpi(cls, log):
-        logger = cls()
-        logger.total_reward = mpi_sum(log.total_reward)
-        logger.num_episodes = mpi_sum(log.num_episodes)
-        logger.num_steps = mpi_sum(log.num_steps)
-        logger.avg_episode_len = logger.num_steps / logger.num_episodes
-        logger.avg_episode_reward = logger.total_reward / logger.num_episodes
-        logger.max_episode_reward = mpi_max(log.max_episode_reward)
-        logger.min_episode_reward = mpi_max(log.min_episode_reward)
-        logger.total_c_reward = mpi_sum(log.total_c_reward)
-        logger.avg_c_reward = logger.total_c_reward / logger.num_steps
-        logger.max_c_reward = mpi_max(log.max_c_reward)
-        logger.min_c_reward = mpi_min(log.min_c_reward)
-        logger.total_c_info = mpi_sum(log.total_c_info)
         logger.avg_c_info = logger.total_c_info / logger.num_steps
         logger.avg_episode_c_reward = logger.total_c_reward / logger.num_episodes
         logger.avg_episode_c_info = logger.total_c_info / logger.num_episodes

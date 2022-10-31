@@ -27,18 +27,21 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         self.prev_bquat = None
         self.set_model_params()
         self.expert = None
-        print(self.model.joint_names)
-        print("Number of Joints:", len(self.model.joint_names))
-        ts = time.time()
         self.load_expert()
-        print(f"Take {time.time()-ts} to load expert")
-        #input("Press Enter to Continue")
         self.set_spaces()
 
     def load_expert(self):
-        expert_qpos, expert_meta = pickle.load(open(self.cfg.expert_traj_file, "rb"))
-        # print(expert_meta)
-        self.expert = get_expert(expert_qpos, expert_meta, self)
+        expert_qposes = []
+        expert_metas = []
+        for expert_traj_file in self.cfg.expert_traj_files:
+            expert_qpos, expert_meta = pickle.load(open(expert_traj_file, "rb"))
+            expert_qposes.append(expert_qpos)
+            expert_metas.append(expert_meta)
+        self.experts = []
+        for i in range(len(expert_qposes)):
+            self.experts.append(get_expert(expert_qposes[i], expert_metas[i], self))
+        self.expert = self.experts[0]
+        self.expert_id = 0
 
     def set_model_params(self):
         if self.cfg.action_type == 'torque' and hasattr(self.cfg, 'j_stiff'):
@@ -105,10 +108,9 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         for name in ee_name:
             bone_id = self.model._body_name2id[name]
             bone_vec = self.data.body_xpos[bone_id]
-            # In heading mode the vector is only
-            if transform is not None: # transform is a string, not a transformation matrix
-                bone_vec = bone_vec - root_pos # Each joint's relative position to root
-                bone_vec = transform_vec(bone_vec, root_q, transform) # Express different bone's location in local frame
+            if transform is not None:
+                bone_vec = bone_vec - root_pos
+                bone_vec = transform_vec(bone_vec, root_q, transform)
             ee_pos.append(bone_vec)
         return np.concatenate(ee_pos)
 
@@ -153,7 +155,6 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
 
         k_p = np.zeros(qvel.shape[0])
         k_d = np.zeros(qvel.shape[0])
-        # Dimension of cfg.jkp should equals to actuated joint number.
         k_p[6:] = cfg.jkp
         k_d[6:] = cfg.jkd
         qpos_err = np.concatenate((np.zeros(6), qpos[7:] + qvel[6:]*dt - target_pos))
@@ -272,7 +273,6 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
                                                               quaternion_inverse(expert['init_heading']))
                 expert['cycle_pos'] = np.concatenate((self.data.qpos[:2], expert['init_pos'][[2]]))
 
-
     def get_phase(self):
         ind = self.get_expert_index(self.cur_t)
         return ind / self.expert['len']
@@ -280,6 +280,17 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def get_expert_index(self, t):
         return (self.start_ind + t) % self.expert['len'] \
                 if self.expert['meta']['cyclic'] else min(self.start_ind + t, self.expert['len'] - 1)
+
+    def get_goal(self):
+        return self.get_expert_attr('qpos',self.expert['len']-1)
+
+    def switch_expert(self,idx=None):
+        if idx is not None:
+            self.expert = self.experts[idx]
+            self.expert_id = idx
+        else:
+            self.expert_id = (self.expert_id + 1)%len(self.experts)
+            self.expert = self.experts[self.expert_id]
 
     def get_expert_offset(self, t):
         if self.expert['meta']['cyclic']:

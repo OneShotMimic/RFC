@@ -1,7 +1,7 @@
 import math
 from khrylib.utils.torch import *
 from khrylib.rl.agents import AgentPG
-import mpi_utils.mpi_pytorch as mpith
+
 
 class AgentPPO(AgentPG):
 
@@ -48,44 +48,6 @@ class AgentPPO(AgentPG):
                 self.optimizer_policy.zero_grad()
                 surr_loss.backward()
                 self.clip_policy_grad()
-                self.optimizer_policy.step()
-
-    def update_policy_mpi(self, states, actions, returns, advantages, exps):
-        with to_test(*self.update_modules):
-            with torch.no_grad():
-                fixed_log_probs = self.policy_net.get_log_prob(self.trans_policy(states), actions)
-
-        for _ in range(self.opt_num_epochs):
-            if self.use_mini_batch:
-                perm = np.arange(states.shape[0])
-                np.random.shuffle(perm)
-                perm = LongTensor(perm).to(self.device)
-
-                states, actions, returns, advantages, fixed_log_probs, exps = \
-                    states[perm].clone(), actions[perm].clone(), returns[perm].clone(), advantages[perm].clone(), \
-                    fixed_log_probs[perm].clone(), exps[perm].clone()
-
-                optim_iter_num = int(math.floor(states.shape[0] / self.mini_batch_size))
-                for i in range(optim_iter_num):
-                    ind = slice(i * self.mini_batch_size, min((i + 1) * self.mini_batch_size, states.shape[0]))
-                    states_b, actions_b, advantages_b, returns_b, fixed_log_probs_b, exps_b = \
-                        states[ind], actions[ind], advantages[ind], returns[ind], fixed_log_probs[ind], exps[ind]
-                    ind = exps_b.nonzero(as_tuple=False).squeeze(1)
-                    self.update_value_mpi(states_b, returns_b)
-                    surr_loss = self.ppo_loss(states_b, actions_b, advantages_b, fixed_log_probs_b, ind)
-                    self.optimizer_policy.zero_grad()
-                    surr_loss.backward()
-                    self.clip_policy_grad()
-                    mpith.mpi_avg_grads(self.policy_net)
-                    self.optimizer_policy.step()
-            else:
-                ind = exps.nonzero(as_tuple=False).squeeze(1)
-                self.update_value_mpi(states, returns)
-                surr_loss = self.ppo_loss(states, actions, advantages, fixed_log_probs, ind)
-                self.optimizer_policy.zero_grad()
-                surr_loss.backward()
-                self.clip_policy_grad()
-                mpith.mpi_avg_grads(self.policy_net)
                 self.optimizer_policy.step()
 
     def clip_policy_grad(self):

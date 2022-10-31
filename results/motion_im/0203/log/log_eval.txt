@@ -1,0 +1,3 @@
+[2022-10-24 15:16:51,816] loading model from checkpoint: results/motion_im/0203/models/iter_1700.p
+[2022-10-24 15:17:55,224] loading model from checkpoint: results/motion_im/0203/models/iter_1700.p
+[2022-10-24 15:34:07,287] loading model from checkpoint: results/motion_im/0203/models/iter_1700.p
