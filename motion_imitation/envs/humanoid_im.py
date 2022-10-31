@@ -22,6 +22,7 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         # env specific
         self.end_reward = 0.0
         self.start_ind = 0
+        # Print the mass for each link
         self.body_qposaddr = get_body_qposaddr(self.model)
         self.bquat = self.get_body_quat()
         self.prev_bquat = None

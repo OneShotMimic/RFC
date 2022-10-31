@@ -13,7 +13,7 @@ from khrylib.rl.agents import AgentPPO
 from khrylib.models.mlp import MLP
 from torch.utils.tensorboard import SummaryWriter
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
+#from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
 from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
@@ -30,8 +30,8 @@ def main_loop(args):
 
     dtype = torch.float64
     torch.set_default_dtype(dtype)
-    #device = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
-    device = torch.device("cpu")
+    device = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
+    #device = torch.device("cpu")
     # TODO: (Eric) GPU seems to suffers from memory access issue, need to debug with a mechine with larger memory.
     # if torch.cuda.is_available():
     #     torch.cuda.set_device(args.gpu_index)

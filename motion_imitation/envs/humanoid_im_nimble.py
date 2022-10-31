@@ -1,5 +1,6 @@
 import os
 import sys
+import nimblephysics as nimble
 sys.path.append(os.getcwd())
 
 from khrylib.rl.envs.common import nimble_env
@@ -7,6 +8,7 @@ from gym import spaces
 from khrylib.utils import *
 from khrylib.utils.transformation import quaternion_from_euler
 from motion_imitation.utils.tools import get_expert_nimble
+import pytorch_kinematics as pk
 from mujoco_py import functions as mjf
 import pickle
 import time
@@ -15,8 +17,8 @@ from scipy.linalg import cho_solve, cho_factor
 
 class HumanoidNimbleEnv(nimble_env.NimbleEnv):
 
-    def __init__(self, cfg):
-        nimble_env.NimbleEnv.__init__(self, cfg.mujoco_model_file, 15)
+    def __init__(self, cfg, disable_nimble_visualizer=False):
+        nimble_env.NimbleEnv.__init__(self, cfg.mujoco_model_file, 15, disable_nimble_visualizer)
         self.cfg = cfg
         self.set_cam_first = set()
         # env specific
@@ -30,9 +32,9 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         print("Number of Joints:", len(self.mj_model.joint_names))
         ts = time.time()
         self.load_expert()
-        input("Press Enter to Continue")
-        print(f"Take {time.time()-ts} to load expert")
         #input("Press Enter to Continue")
+        print(f"Take {time.time()-ts} to load expert")
+        input("Press Enter to Continue")
         self.set_spaces()
 
     def load_expert(self):
@@ -113,11 +115,12 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         qpos = self.data.qpos.copy()
         body_quat = [qpos[3:7]]
         for body in self.mj_model.body_names[1:]:
-            if body == 'root' or not body in self.body_qposaddr:
+            if body == 'root' or ((not body in self.body_qposaddr) and (body not in ['lfoot','rfoot'])):
                 continue
-            start, end = self.body_qposaddr[body]
             euler = np.zeros(3)
-            euler[:end - start] = qpos[start:end]
+            if not body in ['lfoot','rfoot']:
+                start, end = self.body_qposaddr[body]
+                euler[:end - start] = qpos[start:end]
             quat = quaternion_from_euler(euler[0], euler[1], euler[2])
             body_quat.append(quat)
         body_quat = np.concatenate(body_quat)
@@ -127,6 +130,7 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         self.sync_mujoco()
         return self.data.subtree_com[0, :].copy()
 
+    # Stable-PD control
     def compute_desired_accel(self, qpos_err, qvel_err, k_p, k_d):
         dt = self.mj_model.opt.timestep
         nv = self.mj_model.nv
@@ -140,25 +144,59 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
                             -C[:, None] - K_p.dot(qpos_err[:, None]) - K_d.dot(qvel_err[:, None]), overwrite_b=True, check_finite=False)
         return q_accel.squeeze()
 
+    def compute_desired_accel_nimble(self, qpos_err, qvel_err, k_p, k_d, state):
+        dt = self.world.getTimeStep()
+        # Get M matrix from nimble
+        self.world.setState(state.detach().numpy())
+        M = torch.from_numpy(self.world.getMassMatrix())
+        C = torch.from_numpy(self.world.getCoriolisAndGravityForces())
+        K_p = torch.diag(k_p)
+        K_d = torch.diag(k_d)
+        q_accel = torch.inverse(M+K_d*dt).matmul(-C-K_p.matmul(qpos_err)-K_d.matmul(qvel_err))
+        return q_accel.squeeze()
+
     def compute_torque(self, ctrl):
         cfg = self.cfg
         dt = self.mj_model.opt.timestep
-        ctrl_joint = ctrl[:self.ndof] * cfg.a_scale
+        ctrl_joint = ctrl[:self.ndof] * cfg.a_scale[self.mj_nonfoot]
         qpos = self.data.qpos.copy()
         qvel = self.data.qvel.copy()
-        base_pos = cfg.a_ref
+        base_pos = cfg.a_ref[self.mj_nonfoot]
         target_pos = base_pos + ctrl_joint
 
         k_p = np.zeros(qvel.shape[0])
         k_d = np.zeros(qvel.shape[0])
         # Dimension of cfg.jkp should equals to actuated joint number.
-        k_p[6:] = cfg.jkp
-        k_d[6:] = cfg.jkd
+        KP = cfg.jkp[self.mj_nonfoot]
+        KD = cfg.jkd[self.mj_nonfoot]
+        k_p[6:] = KP
+        k_d[6:] = KD
         qpos_err = np.concatenate((np.zeros(6), qpos[7:] + qvel[6:]*dt - target_pos))
         qvel_err = qvel
         q_accel = self.compute_desired_accel(qpos_err, qvel_err, k_p, k_d)
         qvel_err += q_accel * dt
-        torque = -cfg.jkp * qpos_err[6:] - cfg.jkd * qvel_err[6:]
+        torque = -KP * qpos_err[6:] - KD * qvel_err[6:]
+        return torque
+
+    def compute_torque_diff(self, ctrl: torch.Tensor, state: torch.Tensor)->torch.Tensor:
+        cfg = self.cfg
+        dt = self.world.getTimeStep()
+        ctrl_joint = ctrl[:self.ndof] * torch.from_numpy(cfg.a_scale[self.mj_nonfoot])
+        qpos = state[:len(state)//2]
+        qvel = state[len(state)//2:]
+        base_pos = torch.from_numpy(cfg.a_ref[self.mj_nonfoot])
+        target_pos = base_pos + ctrl_joint
+        k_p = torch.zeros(qvel.shape[0])
+        k_d = torch.zeros(qvel.shape[0])
+        KP = torch.from_numpy(cfg.jkp[self.mj_nonfoot])
+        KD = torch.from_numpy(cfg.jkd[self.mj_nonfoot])
+        k_p[6:] = KP
+        k_d[6:] = KD
+        qpos_err = torch.cat([torch.zeros(6), qpos[6:]+qvel[6:]*dt-target_pos])
+        qvel_err = qvel
+        q_accel = self.compute_desired_accel_nimble(qpos_err, qvel_err, k_p, k_d, state)
+        qvel_err = q_accel * dt + qvel_err
+        torque = -KP * qpos_err[6:] - KD * qvel_err[6:]
         return torque
 
     """ RFC-Implicit """
@@ -166,19 +204,23 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         vf *= self.cfg.residual_force_scale
         hq = get_heading_q(self.data.qpos[3:7])
         vf[:3] = quat_mul_vec(hq, vf[:3])
-        self.current_control_force[:vf.shape[0]] = vf[[3,4,5,0,1,2]] * 0.2 # Set the root force
+        self.current_control_force[:vf.shape[0]] = vf[[3,4,5,0,1,2]] * 0.1 # Set the root force
+
+    def rfc_implicit_diff(self, vf, state):
+        vf *= torch.from_numpy(self.cfg.residual_force_scale)
+        hq = torch.tensor([0., 0., state[5]]) # yaw
+        vf[:3] = pk.euler_angle_to_matrix(hq,convention="XYZ").matmul(vf[:3])
+        return vf[[3,4,5,0,1,2]] * 0.1
 
     def do_simulation(self, action, n_frames):
         t0 = time.time()
         cfg = self.cfg
         for i in range(n_frames):
             ctrl = action
-            if cfg.action_type == 'position':
-                torque = self.compute_torque(ctrl)
-            elif cfg.action_type == 'torque':
-                torque = ctrl * cfg.a_scale
-            torque = np.clip(torque, -cfg.torque_lim, cfg.torque_lim)
-            self.current_control_force[self.vf_dim:] = torque[self.m2n] * 0.05
+            assert(cfg.action_type!='torque')
+            torque = self.compute_torque(ctrl)
+            torque = np.clip(torque, -cfg.torque_lim[self.mj_nonfoot], cfg.torque_lim[self.mj_nonfoot])
+            self.current_control_force[6:] = torque[self.m2n] * 0.1
 
             """ Residual Force Control (RFC) """
             if cfg.residual_force:
@@ -189,13 +231,38 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
                     raise NotImplementedError
             self.world.setControlForces(self.current_control_force)
             self.world.step()
+        # input()
+        # self.gui.displayState(torch.from_numpy(self.world.getState()))
         self.sync_mujoco()
         if self.viewer is not None:
             self.viewer.sim_time = time.time() - t0
-        print(self.current_control_force)
-        self.gui.displayState(torch.from_numpy(self.world.getState()))
-        input()
 
+    def diff_step(self, action:torch.Tensor, state:torch.Tensor,return_done=False)->torch.Tensor:
+        for _ in range(self.frame_skip):
+            ctrl = action
+            assert(self.cfg.action_type!='torque')
+            torque = self.compute_torque_diff(ctrl, state)
+            torque = torque.clamp(torch.from_numpy(-self.cfg.torque_lim[self.mj_nonfoot]),
+                                  torch.from_numpy(self.cfg.torque_lim[self.mj_nonfoot]))
+            if self.cfg.residual_force:
+                assert(self.cfg.residual_force_mode == 'implicit')
+                vf = self.rfc_implicit_diff(ctrl[-self.vf_dim:],state)
+            else:
+                vf = torch.zeros(6)
+            action = torch.cat([vf, torque]) * 0.01
+            state = nimble.timestep(self.world, state, action)
+            #print(state)
+        self.sync_mujoco_with_state(state)
+        head_pos = self.get_body_com("head")
+        if self.cfg.env_term_body == "head":
+            fail = self.expert is not None and head_pos[2] < self.expert['head_height_lb'] - 0.1
+        else:
+            fail = self.expert is not None and self.data.qpos[2] < self.expert['height_lb'] - 0.1
+        if return_done:
+            return state, fail
+        else:
+            return state
+            
     def step(self, a):
         cfg = self.cfg
         # record prev state keep using mujoco
@@ -227,6 +294,7 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
             self.start_ind = ind
             init_pose = self.expert['qpos'][ind, :].copy()
             init_vel = self.expert['qvel'][ind, :].copy()
+            #print("Shapes:", init_pose.shape, init_vel.shape)
             init_pose[7:] += self.np_random.normal(loc=0.0, scale=cfg.env_init_noise, size=self.mj_model.nq - 7)
             self.set_state(init_pose, init_vel)
             self.bquat = self.get_body_quat()
@@ -268,6 +336,21 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         return (self.start_ind + t) % self.expert['len'] \
                 if self.expert['meta']['cyclic'] else min(self.start_ind + t, self.expert['len'] - 1)
 
+    def get_expert_pos_indices(self,ts):
+        poses = []
+        for t in ts:
+            qpos = self.get_expert_attr("qpos",self.get_expert_index(t))
+            # TODO: Verify whether it is correct
+            if self.expert['meta']['cyclic']:
+                init_pos = self.expert['init_pos']
+                cycle_h = self.expert['cycle_relheading']
+                cycle_pos = self.expert['cycle_pos']
+                qpos[:3] = quat_mul_vec(cycle_h, qpos[:3] - init_pos) + cycle_pos
+                qpos[3:7] = quaternion_multiply(cycle_h, qpos[3:7])
+            nimble_qpos = self.to_nimble_state(pos=qpos)
+            poses.append(nimble_qpos)
+        return torch.as_tensor(poses)
+        
     def get_expert_offset(self, t):
         if self.expert['meta']['cyclic']:
             n = (self.start_ind + t) // self.expert['len']
@@ -278,6 +361,9 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
 
     def get_expert_attr(self, attr, ind):
         return self.expert[attr][ind, :]
+
+    def getState(self):
+        return torch.from_numpy(self.world.getState())
 
 
 

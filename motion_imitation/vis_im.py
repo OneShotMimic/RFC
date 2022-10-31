@@ -13,13 +13,13 @@ from khrylib.rl.core.policy_gaussian import PolicyGaussian
 from khrylib.rl.core.critic import Value
 from khrylib.models.mlp import MLP
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
+#from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
 from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None)
-parser.add_argument('--vis_model_file', default='mocap_v2_vis')
+parser.add_argument('--vis_model_file', default='mocap_v3_vis')
 parser.add_argument('--iter', type=int, default=-1)
 parser.add_argument('--focus', action='store_true', default=True)
 parser.add_argument('--hide_expert', action='store_true', default=False)
@@ -49,7 +49,7 @@ if args.simulator == "dflex":
 elif args.simulator == "mujoco":
     env = HumanoidEnv(cfg)
 elif args.simulator == "nimble":
-    env = HumanoidNimbleEnv(cfg)
+    env = HumanoidNimbleEnv(cfg, disable_nimble_visualizer = True)
 env.seed(cfg.seed)
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
@@ -115,7 +115,7 @@ class MyVisulizer(Visualizer):
                     pass
                 state = next_state
             if action_saved == False and self.stored_actions is None:
-                np.save("actions.npy", actions)
+                np.save("actions_.npy", actions)
             poses['gt'] = np.vstack(poses['gt'])
             poses['pred'] = np.vstack(poses['pred'])
             self.num_fr = poses['pred'].shape[0]
@@ -157,7 +157,7 @@ class MyVisulizer(Visualizer):
 
 
 
-vis = MyVisulizer(f'{args.vis_model_file}.xml', actions = None)
+vis = MyVisulizer(f'{args.vis_model_file}.xml', actions = None) #np.load("actions.npy"))
 
 if args.record:
     vis.record_video()

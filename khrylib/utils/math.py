@@ -144,6 +144,11 @@ def quat_mul_vec(q:np.ndarray, v:np.ndarray):
     v = v.dot(quaternion_matrix(q)[:3, :3].T)
     return v.reshape(old_shape)
 
+def quat_mul_vec_torch(q:np.ndarray, v:torch.Tensor):
+    old_shape = v.shape
+    v = v.view(-1,3)
+    v = v.dot(torch.from_numpy(quaternion_matrix(q)[:3,:3].T))
+    return v.view(old_shape)
 
 def quat_to_bullet(q):
     return np.array([q[1], q[2], q[3], q[0]])

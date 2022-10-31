@@ -15,6 +15,7 @@ class MLP(nn.Module):
         self.out_dim = hidden_dims[-1]
         self.affine_layers = nn.ModuleList()
         last_dim = input_dim
+        self.state_dim = input_dim
         for nh in hidden_dims:
             self.affine_layers.append(nn.Linear(last_dim, nh))
             last_dim = nh
