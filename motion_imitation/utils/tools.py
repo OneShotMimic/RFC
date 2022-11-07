@@ -4,7 +4,8 @@ import copy
 # TODO: Need to get a sense of what is this...
 def get_expert(expert_qpos, expert_meta, env):
     old_state = env.sim.get_state()
-    expert = {'qpos': expert_qpos, 'meta': expert_meta}
+    expert = {'qpos': np.hstack([expert_qpos[:,:7], expert_qpos[:,7:][:,env.mj_nonfoot]]), 'meta': expert_meta}
+    #expert = {'qpos': expert_qpos, 'meta': expert_meta}
     feat_keys = {'qvel', 'rlinv', 'rlinv_local', 'rangv', 'rq_rmh',
                  'com', 'head_pos', 'ee_pos', 'ee_wpos', 'bquat', 'bangvel'}
     for key in feat_keys:
@@ -12,6 +13,7 @@ def get_expert(expert_qpos, expert_meta, env):
     print("Expert Length:", expert_qpos.shape[0])
     for i in range(expert_qpos.shape[0]):
         qpos = expert_qpos[i]
+        qpos = np.hstack([qpos[:7],qpos[7:][env.mj_nonfoot]])
         env.data.qpos[:] = qpos
         env.sim.forward()
         rq_rmh = de_heading(qpos[3:7])
@@ -23,6 +25,7 @@ def get_expert(expert_qpos, expert_meta, env):
         print("Head pos:", head_pos)
         if i > 0:
             prev_qpos = expert_qpos[i - 1]
+            prev_qpos = np.hstack([prev_qpos[:7], prev_qpos[7:][env.mj_nonfoot]])
             qvel = get_qvel_fd_new(prev_qpos, qpos, env.dt)
             qvel = qvel.clip(-10.0, 10.0)
             rlinv = qvel[:3].copy()

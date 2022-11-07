@@ -163,10 +163,10 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         qvel = self.data.qvel.copy()
         base_pos = cfg.a_ref[self.mj_nonfoot]
         target_pos = base_pos + ctrl_joint
-
         k_p = np.zeros(qvel.shape[0])
         k_d = np.zeros(qvel.shape[0])
         # Dimension of cfg.jkp should equals to actuated joint number.
+        print("PD Length:", len(cfg.jkp))
         KP = cfg.jkp[self.mj_nonfoot]
         KD = cfg.jkd[self.mj_nonfoot]
         k_p[6:] = KP
@@ -176,7 +176,7 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         q_accel = self.compute_desired_accel(qpos_err, qvel_err, k_p, k_d)
         qvel_err += q_accel * dt
         torque = -KP * qpos_err[6:] - KD * qvel_err[6:]
-        return torque
+        return torque # Should be in mujoco frame
 
     def compute_torque_diff(self, ctrl: torch.Tensor, state: torch.Tensor)->torch.Tensor:
         cfg = self.cfg
@@ -185,7 +185,7 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         qpos = state[:len(state)//2]
         qvel = state[len(state)//2:]
         base_pos = torch.from_numpy(cfg.a_ref[self.mj_nonfoot])
-        target_pos = base_pos + ctrl_joint
+        target_pos = base_pos + ctrl_joint # Are they have the same pos base?
         k_p = torch.zeros(qvel.shape[0])
         k_d = torch.zeros(qvel.shape[0])
         KP = torch.from_numpy(cfg.jkp[self.mj_nonfoot])
@@ -220,7 +220,7 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
             assert(cfg.action_type!='torque')
             torque = self.compute_torque(ctrl)
             torque = np.clip(torque, -cfg.torque_lim[self.mj_nonfoot], cfg.torque_lim[self.mj_nonfoot])
-            self.current_control_force[6:] = torque[self.m2n] * 0.1
+            self.current_control_force[6:] = torque[self.m2n] * 0.2
 
             """ Residual Force Control (RFC) """
             if cfg.residual_force:
@@ -229,11 +229,13 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
                     self.rfc_implicit(vf)
                 else:
                     raise NotImplementedError
+            #print(torque*0.2)
             self.world.setControlForces(self.current_control_force)
             self.world.step()
+            self.sync_mujoco()
         # input()
         # self.gui.displayState(torch.from_numpy(self.world.getState()))
-        self.sync_mujoco()
+       
         if self.viewer is not None:
             self.viewer.sim_time = time.time() - t0
 
@@ -365,5 +367,13 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
     def getState(self):
         return torch.from_numpy(self.world.getState())
 
+    def get_goal(self):
+        return self.get_expert_attr("qpos", self.expert['len']-1)
 
-
+    def switch_expert(self, idx=None):
+        if idx is not None:
+            self.expert = self.experts[idx]
+            self.expert_id = idx
+        else:
+            self.expert_id = (self.expert_id + 1)%len(self.experts)
+            self.expert = self.experts[self.expert_id]

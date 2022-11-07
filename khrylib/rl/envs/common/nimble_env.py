@@ -56,23 +56,27 @@ class NimbleEnv:
         self.mj_model = mujoco_py.load_model_from_path(fullpath)
         self.mj_sim = mujoco_py.MjSim(self.mj_model)
         # load nimble model
+        print("Mujoco Joint:",self.mj_model.joint_names)
         self.world = nimble.simulation.World()
         self.robot = self.world.loadSkeleton(path.join(Path(__file__).parent.parent.parent.parent, 'assets/mujoco_models/rfc_model', path.basename("humanoid_root.urdf")))
         for i in range(self.robot.getNumJoints()):
-            if i != 0: # Except root joint
-                self.robot.getJoint(i).setDampingCoefficient(0, 1)
+            print(self.robot.getJoint(i).getName())
+            if i > 6: # Except root joint
+                self.robot.getJoint(i).setDampingCoefficient(0, 0)
                 #self.robot.getJoint(i).setSpringStiffness(0, 5)
                 self.robot.getJoint(i).setPositionLimitEnforced(True)
         # Set Body Node friction
-        # self.robot.getBodyNode("lfoot").setFrictionCoeff(20.0)
-        # self.robot.getBodyNode("rfoot").setFrictionCoeff(20.0)
-        # self.robot.getBodyNode("thorax").setFrictionCoeff(20.0)
-        # self.robot.getBodyNode("lowerneck").setFrictionCoeff(20.0)
+        self.robot.getBodyNode("lfoot").setFrictionCoeff(20.0)
+        self.robot.getBodyNode("rfoot").setFrictionCoeff(20.0)
+        self.robot.getBodyNode("thorax").setFrictionCoeff(20.0)
+        self.robot.getBodyNode("lowerneck").setFrictionCoeff(20.0)
+        self.robot.getBodyNode("lwrist").setFrictionCoeff(20.0)
+        self.robot.getBodyNode("rwrist").setFrictionCoeff(20.0)
 
         self.floor = self.world.loadSkeleton(path.join(Path(__file__).parent.parent.parent.parent, 'assets/mujoco_models/rfc_model', path.basename("humanoid_floor.urdf")))
-        # self.floor.getBodyNode("floor").setFrictionCoeff(20.0)
+        self.floor.getBodyNode("floor").setFrictionCoeff(20.0)
         self.world.setTimeStep(self.mj_model.opt.timestep)
-        self.world.setGravity([0, 0, -2])
+        self.world.setGravity([0, 0, -4])
         print("TimeStep:", self.mj_model.opt.timestep)
         #print("Gravity:", self.mj_model.opt.gravity, self.world.getGravity())
         self.setup_joint_mapping()
@@ -119,9 +123,9 @@ class NimbleEnv:
             rot = pk.matrix_to_euler_angles(pk.quaternion_to_matrix(torch.from_numpy(quat)),convention="XYZ").numpy()
             pose = pos[:3].copy()
             pose[2] += 0.1
-            nimble_pos = np.hstack([rot, pose, pos[7:][self.m2n]])
+            nimble_pos = np.hstack([pose, rot, pos[7:][self.m2n]])
         if vel is not None:
-            nimble_vel = np.hstack([vel[3:6], vel[:3], vel[6:][self.m2n]])
+            nimble_vel = np.hstack([vel[:3], vel[3:6], vel[6:][self.m2n]])
         if pos is not None and vel is not None:
             state = np.hstack([nimble_pos, nimble_vel])
         elif pos is not None:
@@ -138,13 +142,14 @@ class NimbleEnv:
             state = torch.from_numpy(state)
         pos = state[:int(len(state)/2)]
         vel = state[int(len(state)/2):]
-        rot = pk.matrix_to_quaternion(pk.euler_angles_to_matrix(pos[:3], convention="XYZ")).numpy()
+        # Seems to be ambiguous
+        rot = pk.matrix_to_quaternion(pk.euler_angles_to_matrix(pos[3:6], convention="XYZ")).numpy()
         joint_pos = np.zeros(26)
         joint_pos = pos[6:][self.n2m]
-        mujoco_pos = np.hstack([pos[3:6], rot, joint_pos])
+        mujoco_pos = np.hstack([pos[:3], rot, joint_pos])
         joint_vel = np.zeros(26)
         joint_vel = vel[6:][self.n2m]
-        mujoco_vel = np.hstack([vel[3:6], vel[:3], joint_vel])
+        mujoco_vel = np.hstack([vel[:3], vel[3:6], joint_vel])
         return mujoco_pos, mujoco_vel
         
     def set_spaces(self):
@@ -294,5 +299,9 @@ class NimbleEnv:
 
     def get_goal(self):
         return self.get_expert_attr('qpos',self.expert['len']-1)
+
+    def render_nimble(self):
+        self.gui.displayState(torch.from_numpy(self.world.getState()))
+        input("Press Enter to continue")
 
 

@@ -1,5 +1,5 @@
 # data
-motion_id: ['02_02']
+motion_id: ['02_02','02_03','02_05']
 
 # training parameters
 gamma: 0.95
@@ -24,7 +24,7 @@ log_std: -2.3
 fix_std: true
 max_iter_num: 2000
 seed: 1
-save_model_interval: 10
+save_model_interval: 100
 reward_id: 'local_rfc_implicit'
 reward_weights:
   w_p: 0.5
@@ -45,7 +45,7 @@ reward_weights:
 # expert and environment
 mujoco_model: rfc_humanoid_debug
 vis_model: mocap_v3_vis
-env_episode_len: 75
+env_episode_len: 100
 env_term_body: 'root'
 env_expert_trail_steps: 10
 obs_coord: 'heading'

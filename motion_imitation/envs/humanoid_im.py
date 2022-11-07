@@ -12,6 +12,17 @@ import pickle
 import time
 from scipy.linalg import cho_solve, cho_factor
 
+mujoco_joints = ['lfemur_z', 'lfemur_y', 'lfemur_x', 'ltibia_x',
+                 'lfoot_z', 'lfoot_y', 'lfoot_x', 'rfemur_z', 
+                 'rfemur_y', 'rfemur_x', 'rtibia_x', 'rfoot_z', 
+                 'rfoot_y', 'rfoot_x', 'upperback_z', 'upperback_y', 
+                 'upperback_x', 'lowerneck_z', 'lowerneck_y', 
+                 'lowerneck_x', 'lclavicle_z', 'lclavicle_y', 
+                 'lhumerus_z', 'lhumerus_y', 'lhumerus_x', 'lradius_x', 
+                 'rclavicle_z', 'rclavicle_y', 'rhumerus_z', 'rhumerus_y', 
+                 'rhumerus_x', 'rradius_x']
+
+FOOT_JOINTS = ["lfoot_x", "lfoot_y", "lfoot_z", "rfoot_x", "rfoot_y", "rfoot_z"]
 
 class HumanoidEnv(mujoco_env.MujocoEnv):
 
@@ -30,16 +41,33 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         self.expert = None
         print(self.model.joint_names)
         print("Number of Joints:", len(self.model.joint_names))
+        print("Body Names:", self.model.body_names)
+        print("Body Mass:", self.model.body_mass)
         ts = time.time()
+        self.setup_joint_mapping()
         self.load_expert()
         print(f"Take {time.time()-ts} to load expert")
         #input("Press Enter to Continue")
         self.set_spaces()
 
+    def setup_joint_mapping(self):
+        self.mj_nonfoot = []
+        for i in range(len(mujoco_joints)):
+            if mujoco_joints[i] not in FOOT_JOINTS:
+                self.mj_nonfoot.append(i)
+
     def load_expert(self):
-        expert_qpos, expert_meta = pickle.load(open(self.cfg.expert_traj_file, "rb"))
-        # print(expert_meta)
-        self.expert = get_expert(expert_qpos, expert_meta, self)
+        expert_qposes = []
+        expert_metas = []
+        for expert_traj_file in self.cfg.expert_traj_files:
+            expert_qpos, expert_meta = pickle.load(open(expert_traj_file, "rb"))
+            expert_qposes.append(expert_qpos)
+            expert_metas.append(expert_meta)
+        self.experts = []
+        for i in range(len(expert_qposes)):
+            self.experts.append(get_expert(expert_qposes[i], expert_metas[i], self))
+        self.expert = self.experts[0]
+        self.expert_id = 0
 
     def set_model_params(self):
         if self.cfg.action_type == 'torque' and hasattr(self.cfg, 'j_stiff'):
@@ -146,22 +174,22 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def compute_torque(self, ctrl):
         cfg = self.cfg
         dt = self.model.opt.timestep
-        ctrl_joint = ctrl[:self.ndof] * cfg.a_scale
+        ctrl_joint = ctrl[:self.ndof] * cfg.a_scale[self.mj_nonfoot]
         qpos = self.data.qpos.copy()
         qvel = self.data.qvel.copy()
-        base_pos = cfg.a_ref
+        base_pos = cfg.a_ref[self.mj_nonfoot]
         target_pos = base_pos + ctrl_joint
 
         k_p = np.zeros(qvel.shape[0])
         k_d = np.zeros(qvel.shape[0])
         # Dimension of cfg.jkp should equals to actuated joint number.
-        k_p[6:] = cfg.jkp
-        k_d[6:] = cfg.jkd
+        k_p[6:] = cfg.jkp[self.mj_nonfoot]
+        k_d[6:] = cfg.jkd[self.mj_nonfoot]
         qpos_err = np.concatenate((np.zeros(6), qpos[7:] + qvel[6:]*dt - target_pos))
         qvel_err = qvel
         q_accel = self.compute_desired_accel(qpos_err, qvel_err, k_p, k_d)
         qvel_err += q_accel * dt
-        torque = -cfg.jkp * qpos_err[6:] - cfg.jkd * qvel_err[6:]
+        torque = -cfg.jkp[self.mj_nonfoot] * qpos_err[6:] - cfg.jkd[self.mj_nonfoot] * qvel_err[6:]
         return torque
 
     """ RFC-Explicit """
@@ -194,8 +222,9 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
                 torque = self.compute_torque(ctrl)
             elif cfg.action_type == 'torque':
                 torque = ctrl * cfg.a_scale
-            torque = np.clip(torque, -cfg.torque_lim, cfg.torque_lim)
-            self.data.ctrl[:] = torque
+            torque = np.clip(torque, -cfg.torque_lim[self.mj_nonfoot], cfg.torque_lim[self.mj_nonfoot])
+            self.data.ctrl[:] = torque * 0.2
+            #print(torque * 0.2)
 
             """ Residual Force Control (RFC) """
             if cfg.residual_force:
@@ -206,7 +235,7 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
                     self.rfc_explicit(vf)
 
             self.sim.step()
-
+        #input("Press Enter to Continue")
         if self.viewer is not None:
             self.viewer.sim_time = time.time() - t0
 
@@ -293,5 +322,13 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def get_expert_attr(self, attr, ind):
         return self.expert[attr][ind, :]
 
+    def get_goal(self):
+        return self.get_expert_attr("qpos", self.expert['len']-1)
 
-
+    def switch_expert(self, idx=None):
+        if idx is not None:
+            self.expert = self.experts[idx]
+            self.expert_id = idx
+        else:
+            self.expert_id = (self.expert_id+1)%len(self.experts)
+            self.expert = self.experts[self.expert_id]

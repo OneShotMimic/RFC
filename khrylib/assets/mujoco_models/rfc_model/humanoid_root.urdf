@@ -1,9 +1,45 @@
 <?xml version="0.0" ?>
 <robot name="humanoid">
+	<link name="world"/>
+	<link name="aux_pitch">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.0"/>
+			<inertia ixx="0.0" ixy="0" ixz="0" iyy="0.0" iyz="0" izz="0.0"/>
+		</inertial>
+	</link>
+	<link name="aux_roll">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.0"/>
+			<inertia ixx="0.0" ixy="0" ixz="0" iyy="0.0" iyz="0" izz="0.0"/>
+		</inertial>
+	</link>
+	<link name="aux_yaw">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.0"/>
+			<inertia ixx="0.0" ixy="0" ixz="0" iyy="0.0" iyz="0" izz="0.0"/>
+		</inertial>
+	</link>
+	<link name="aux_x">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.0"/>
+			<inertia ixx="0.0" ixy="0" ixz="0" iyy="0.0" iyz="0" izz="0.0"/>
+		</inertial>
+	</link>
+	<link name="aux_y">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.0"/>
+			<inertia ixx="0.0" ixy="0" ixz="0" iyy="0.0" iyz="0" izz="0.0"/>
+		</inertial>
+	</link>
 	<link name="root">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="5.57528"/>
+			<mass value="5.57527976"/>
 			<inertia ixx="0.04497" ixy="0" ixz="0" iyy="0.04497" iyz="0" izz="0.04497"/>
 		</inertial>
 		<collision>
@@ -43,7 +79,7 @@
 	<link name="lfemur">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="3.359091094590227"/>
+			<mass value="3.35909109"/>
 			<inertia ixx="0.06392" ixy="0" ixz="0" iyy="0.07914" iyz="0" izz="0.02154"/>
 		</inertial>
 		<!-- <collision>
@@ -62,7 +98,7 @@
 	<link name="ltibia">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="1.726211085013987"/>
+			<mass value="1.72621109"/>
 			<inertia ixx="0.02916" ixy="0" ixz="0" iyy="0.03549" iyz="0" izz="0.00795"/>
 		</inertial>
 		<!-- <collision>
@@ -81,7 +117,7 @@
 	<link name="lfoot">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="1.23264"/>
+			<mass value="2.14466058"/>
 			<inertia ixx="0.00547" ixy="0" ixz="0" iyy="0.00248" iyz="0" izz="0.00642"/>
 		</inertial>
 		<collision>
@@ -125,7 +161,7 @@
 	<link name="rfemur">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="3.359091094590227"/>
+			<mass value="3.35909109"/>
 			<inertia ixx="0.06392" ixy="0" ixz="0" iyy="0.07914" iyz="0" izz="0.02154"/>
 		</inertial>
 		<!-- <collision>
@@ -144,7 +180,7 @@
 	<link name="rtibia">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="1.726211085013987"/>
+			<mass value="1.72621109"/>
 			<inertia ixx="0.02916" ixy="0" ixz="0" iyy="0.03549" iyz="0" izz="0.00795"/>
 		</inertial>
 		<!-- <collision>
@@ -163,7 +199,7 @@
 	<link name="rfoot">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="1.23264"/>
+			<mass value="2.14466058"/>
 			<inertia ixx="0.00547" ixy="0" ixz="0" iyy="0.00248" iyz="0" izz="0.00642"/>
 		</inertial>
 		<collision>
@@ -207,7 +243,7 @@
 	<link name="upperback">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="1.43676"/>
+			<mass value="1.43675504"/>
 			<inertia ixx="0.00469" ixy="0" ixz="0" iyy="0.00469" iyz="0" izz="0.00469"/>
 		</inertial>
 		<!-- <collision>
@@ -226,7 +262,7 @@
 	<link name="thorax">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
-			<mass value="4.18879"/>
+			<mass value="4.1887902"/>
 			<inertia ixx="0.02793" ixy="0" ixz="0" iyy="0.02793" iyz="0" izz="0.02793"/>
 		</inertial>
 		<collision>
@@ -483,6 +519,55 @@
 			</geometry>
 		</visual>
 	</link>
+
+	<joint name="root_pitch" type="prismatic">
+		<parent link="world"/>
+		<child link="aux_pitch"/>
+		<dynamics damping="0.0" friction="0.0"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="1.0 0.0 0.0"/>
+		<limit effort="0" velocity="100.0" lower="-100" upper="100"/>
+	</joint>
+	<joint name="root_roll" type="prismatic">
+		<parent link="aux_pitch"/>
+		<child link="aux_roll"/>
+		<dynamics damping="0.0" friction="0.0"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.0 1.0 0.0"/>
+		<limit effort="0" velocity="100.0" lower="-100" upper="100"/>
+	</joint>
+	<joint name="root_yaw" type="prismatic">
+		<parent link="aux_roll"/>
+		<child link="aux_yaw"/>
+		<dynamics damping="0.0" friction="0.0"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.0 0.0 1.0"/>
+		<limit effort="0" velocity="100.0" lower="-100" upper="100"/>
+	</joint>
+	<joint name="root_x" type="revolute">
+		<parent link="aux_yaw"/>
+		<child link="aux_x"/>
+		<dynamics damping="0.0" friction="0.0"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="1.0 0.0 0.0"/>
+		<limit effort="0" velocity="100.0" lower="-100" upper="100"/>
+	</joint>
+	<joint name="root_y" type="revolute">
+		<parent link="aux_x"/>
+		<child link="aux_y"/>
+		<dynamics damping="0.0" friction="0.0"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.0 1.0 0.0"/>
+		<limit effort="0" velocity="100.0" lower="-100" upper="100"/>
+	</joint>
+	<joint name="root_z" type="revolute">
+		<parent link="aux_y"/>
+		<child link="root"/>
+		<dynamics damping="0.0" friction="0.0"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.0 0.0 1.0"/>
+		<limit effort="0" velocity="100.0" lower="-100" upper="100"/>
+	</joint>
 	<joint name="jointfix_3_0" type="fixed">
 		<parent link="root"/>
 		<child link="lhipjoint"/>

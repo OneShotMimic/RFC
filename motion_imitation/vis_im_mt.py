@@ -9,17 +9,20 @@ sys.path.append(os.getcwd())
 
 from khrylib.utils import *
 from khrylib.rl.utils.visualizer import Visualizer
-from khrylib.rl.core.policy_gaussian import PolicyGaussian
-from khrylib.rl.core.critic import Value
+from khrylib.rl.core.policy_mcp_gaussian import MCPPolicyGaussian
+from khrylib.rl.core.policy_additive_gaussian import AdditivePolicyGaussian
+from khrylib.rl.core.critic import GoalValue
 from khrylib.models.mlp import MLP
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-#from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
 from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 
+policy_dict = {"multiplicative":MCPPolicyGaussian,
+               "additive":AdditivePolicyGaussian}
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None)
-parser.add_argument('--vis_model_file', default='mocap_v3_vis')
+parser.add_argument('--vis_model_file', default='mocap_v2_vis')
 parser.add_argument('--iter', type=int, default=-1)
 parser.add_argument('--focus', action='store_true', default=True)
 parser.add_argument('--hide_expert', action='store_true', default=False)
@@ -28,9 +31,11 @@ parser.add_argument('--record', action='store_true', default=False)
 parser.add_argument('--record_expert', action='store_true', default=False)
 parser.add_argument('--azimuth', type=float, default=45)
 parser.add_argument('--video_dir', default='out/videos/motion_im')
+parser.add_argument('--policy', default='multiplicative',type=str)
+parser.add_argument('--expert_id', type=int, default=0)
 parser.add_argument('--simulator', type=str, default="mujoco")
-parser.add_argument('--exp_name', type=str, default=None, required=True)
-parser.add_argument('--render_nimble',action="store_true", default=False)
+parser.add_argument("--exp_name", type=str, default=None, required=True)
+parser.add_argument("--render_nimble",action="store_true", default=False)
 args = parser.parse_args()
 cfg = Config(args.cfg, False, create_dirs=False)
 cfg.env_start_first = True
@@ -46,13 +51,17 @@ if args.simulator == "mujoco":
 elif args.simulator == "nimble":
     env = HumanoidNimbleEnv(cfg, disable_nimble_visualizer = not args.render_nimble)
 env.seed(cfg.seed)
+actuators = env.model.actuator_names
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 
 """load learner policy"""
-policy_net = PolicyGaussian(MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
-value_net = Value(MLP(state_dim, cfg.value_hsize, cfg.value_htype))
-cp_path = f"{cfg.model_dir}/iter_{args.exp_name}_{args.iter:04}.p"
+#policy_net = PolicyGaussian(MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
+policy_net = policy_dict[args.policy](MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
+env.switch_expert(args.expert_id)
+policy_net.set_goal(env.get_goal())
+value_net = GoalValue(MLP(state_dim+39, cfg.value_hsize, cfg.value_htype))
+cp_path = f"{cfg.model_dir}/iter_{args.simulator}_{args.iter:04}.p"
 logger.info('loading model from checkpoint: %s' % cp_path)
 model_cp = pickle.load(open(cp_path, "rb"))
 policy_net.load_state_dict(model_cp['policy_dict'])
@@ -62,8 +71,8 @@ running_state = model_cp['running_state']
 
 class MyVisulizer(Visualizer):
 
-    def __init__(self, vis_file, actions = None):
-        super().__init__(vis_file, actions)
+    def __init__(self, vis_file, actions=None):
+        super().__init__(vis_file,actions)
         if args.simulator == "nimble":
             ngeom = len(env.mj_model.geom_rgba) - 1
         else:
@@ -92,8 +101,9 @@ class MyVisulizer(Visualizer):
                     epos[:3] = quat_mul_vec(cycle_h, epos[:3] - init_pos) + cycle_pos
                     epos[3:7] = quaternion_multiply(cycle_h, epos[3:7])
                 poses['gt'].append(epos)
-                poses['pred'].append(env.data.qpos.copy()) # Should have no difference
+                poses['pred'].append(env.data.qpos.copy())
                 state_var = tensor(state, dtype=dtype).unsqueeze(0)
+                action = policy_net.select_action(state_var, mean_action=True)[0].cpu().numpy()
                 if self.stored_actions is not None:
                     action = self.stored_actions[t]
                     print("Use stored action")
@@ -101,16 +111,15 @@ class MyVisulizer(Visualizer):
                     action = policy_net.select_action(state_var, mean_action=True)[0].cpu().numpy()
                 actions.append(action)
                 next_state, reward, done, _ = env.step(action)
-                if args.render_nimble:
-                    env.render_nimble()
-                print("t:",t)
                 if running_state is not None:
                     next_state = running_state(next_state, update=False)
                 if done:
-                    pass
+                    break
                 state = next_state
             if action_saved == False and self.stored_actions is None:
-                np.save("actions_.npy", actions)
+                np.save("moe_actions.npy", actions)
+            if args.policy != "mlp":
+                print("Average Weight:",policy_net.summary_w())
             poses['gt'] = np.vstack(poses['gt'])
             poses['pred'] = np.vstack(poses['pred'])
             self.num_fr = poses['pred'].shape[0]
@@ -152,7 +161,7 @@ class MyVisulizer(Visualizer):
 
 
 
-vis = MyVisulizer(f'{args.vis_model_file}.xml')#, actions = np.load("actions_.npy"))
+vis = MyVisulizer(f'{args.vis_model_file}.xml')#, actions = np.load("moe_actions.npy"))
 
 if args.record:
     vis.record_video()

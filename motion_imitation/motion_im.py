@@ -1,4 +1,3 @@
-from functools import partial
 import argparse
 import os
 import sys
@@ -18,12 +17,7 @@ from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
 
-from mpi_utils.mpi_tools import mpi_fork, proc_id
-from mpi_utils.mpi_pytorch import setup_pytorch_for_mpi
-
 def main_loop(args):
-    if args.simulator == "dflex":
-        setup_pytorch_for_mpi()
     if args.render:
         args.num_threads = 1
     cfg = Config(args.cfg, args.test, create_dirs=not (args.render or args.iter > 0))
@@ -41,14 +35,7 @@ def main_loop(args):
     logger = create_logger(os.path.join(cfg.log_dir, 'log.txt'), file_handle=not args.render)
 
     """environment"""
-    if args.simulator == "dflex":
-        env = HumanoidDFlexEnv(cfg=cfg, 
-                                no_grad=True,  # Here requires no grad
-                                device = device, 
-                                MM_caching_frequency = 1,
-                                num_obs = estimate_obs_dim(cfg),
-                                num_act = 32 + 6) # dof + root wrench
-    elif args.simulator == "mujoco":
+    if args.simulator == "mujoco":
         env = HumanoidEnv(cfg)
     elif args.simulator == "nimble":
         env = HumanoidNimbleEnv(cfg)
@@ -108,46 +95,39 @@ def main_loop(args):
         for i_iter in range(args.iter, cfg.max_iter_num):
             """generate multiple trajectories that reach the minimum batch_size"""
             pre_iter_update(i_iter)
-            if args.simulator == "dflex":
-                batch, log = agent.sample_mpi(cfg.min_batch_size)
-            else:
-                batch, log = agent.sample(cfg.min_batch_size)
+            batch, log = agent.sample(cfg.min_batch_size)
             if cfg.end_reward:
                 agent.set_end_reward(log.avg_c_reward * cfg.gamma / (1 - cfg.gamma))
 
             """update networks"""
             t0 = time.time()
-            if args.simulator == "dflex":
-                agent.update_params_mpi(batch)
-            else:
-                agent.update_params(batch)
+            agent.update_params(batch)
             t1 = time.time()
 
             """logging"""
             c_info = log.avg_c_info
             # TODO: Need to find a way to synchronize statistics
-            if (not args.simulator == "dflex") or (proc_id() == 0):
-                logger.info(
-                    '{}\tT_sample {:.2f}\tT_update {:.2f}\tETA {}\texpert_R_avg {:.4f} {}'
-                    '\texpert_R_range ({:.4f}, {:.4f})\teps_len {:.2f}'
-                    .format(i_iter, log.sample_time, t1 - t0, get_eta_str(i_iter, cfg.max_iter_num, t1 - t0 + log.sample_time), log.avg_c_reward,
-                            np.array2string(c_info, formatter={'all': lambda x: '%.4f' % x}, separator=','),
-                            log.min_c_reward, log.max_c_reward, log.avg_episode_len))
+            logger.info(
+                '{}\tT_sample {:.2f}\tT_update {:.2f}\tETA {}\texpert_R_avg {:.4f} {}'
+                '\texpert_R_range ({:.4f}, {:.4f})\teps_len {:.2f}'
+                .format(i_iter, log.sample_time, t1 - t0, get_eta_str(i_iter, cfg.max_iter_num, t1 - t0 + log.sample_time), log.avg_c_reward,
+                        np.array2string(c_info, formatter={'all': lambda x: '%.4f' % x}, separator=','),
+                        log.min_c_reward, log.max_c_reward, log.avg_episode_len))
 
-                tb_logger.add_scalar('total_reward', log.avg_c_reward, i_iter)
-                tb_logger.add_scalar('episode_len', log.avg_episode_reward, i_iter)
-                for i in range(c_info.shape[0]):
-                    tb_logger.add_scalar('reward_%d' % i, c_info[i], i_iter)
-                    tb_logger.add_scalar('eps_reward_%d' % i, log.avg_episode_c_info[i], i_iter)
+            tb_logger.add_scalar('total_reward', log.avg_c_reward, i_iter)
+            tb_logger.add_scalar('episode_len', log.avg_episode_reward, i_iter)
+            for i in range(c_info.shape[0]):
+                tb_logger.add_scalar('reward_%d' % i, c_info[i], i_iter)
+                tb_logger.add_scalar('eps_reward_%d' % i, log.avg_episode_c_info[i], i_iter)
 
-                if cfg.save_model_interval > 0 and (i_iter+1) % cfg.save_model_interval == 0:
-                    tb_logger.flush()
-                    with to_cpu(policy_net, value_net):
-                        cp_path = '%s/iter_%04d.p' % (cfg.model_dir, i_iter + 1)
-                        model_cp = {'policy_dict': policy_net.state_dict(),
-                                    'value_dict': value_net.state_dict(),
-                                    'running_state': running_state}
-                        pickle.dump(model_cp, open(cp_path, 'wb'))
+            if cfg.save_model_interval > 0 and (i_iter+1) % cfg.save_model_interval == 0:
+                tb_logger.flush()
+                with to_cpu(policy_net, value_net):
+                    cp_path = f"{cfg.model_dir}/iter_{args.exp_name}_{i_iter+1:04}.p"
+                    model_cp = {'policy_dict': policy_net.state_dict(),
+                                'value_dict': value_net.state_dict(),
+                                'running_state': running_state}
+                    pickle.dump(model_cp, open(cp_path, 'wb'))
 
             """clean up gpu memory"""
             torch.cuda.empty_cache()
@@ -159,12 +139,11 @@ if __name__ == "__main__":
     parser.add_argument('--cfg', default=None)
     parser.add_argument('--render', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
-    parser.add_argument('--num_threads', type=int, default=20)
+    parser.add_argument('--num_threads', type=int, default=16)
     parser.add_argument('--gpu_index', type=int, default=0)
     parser.add_argument('--iter', type=int, default=0)
     parser.add_argument('--simulator', type=str, default="mujoco")
     parser.add_argument('--show_noise', action='store_true', default=False)
+    parser.add_argument('--exp_name', default=None, required=True, type=str)
     args = parser.parse_args()
-    if args.simulator == "dflex":
-        mpi_fork(args.num_threads)
     main_loop(args)
