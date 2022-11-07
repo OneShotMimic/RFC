@@ -38,9 +38,17 @@ class HumanoidNimbleEnv(nimble_env.NimbleEnv):
         self.set_spaces()
 
     def load_expert(self):
-        expert_qpos, expert_meta = pickle.load(open(self.cfg.expert_traj_file, "rb"))
-        # print(expert_meta)
-        self.expert = get_expert_nimble(expert_qpos, expert_meta, self)
+        expert_qposes = []
+        expert_metas = []
+        for expert_traj_file in self.cfg.expert_traj_files:
+            expert_qpos, expert_meta = pickle.load(open(expert_traj_file, "rb"))
+            expert_qposes.append(expert_qpos)
+            expert_metas.append(expert_meta)
+        self.experts = []
+        for i in range(len(expert_qposes)):
+            self.experts.append(get_expert_nimble(expert_qposes[i], expert_metas[i], self))
+        self.expert = self.experts[0]
+        self.expert_id = 0
 
     def set_spaces(self):
         cfg = self.cfg
