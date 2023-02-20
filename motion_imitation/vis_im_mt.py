@@ -14,7 +14,7 @@ from khrylib.rl.core.policy_additive_gaussian import AdditivePolicyGaussian
 from khrylib.rl.core.critic import GoalValue
 from khrylib.models.mlp import MLP
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
+#from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 
 policy_dict = {"multiplicative":MCPPolicyGaussian,
@@ -49,19 +49,20 @@ torch.set_grad_enabled(False)
 if args.simulator == "mujoco":
     env = HumanoidEnv(cfg)
 elif args.simulator == "nimble":
-    env = HumanoidNimbleEnv(cfg, disable_nimble_visualizer = not args.render_nimble)
+    raise NotImplementedError
 env.seed(cfg.seed)
-actuators = env.model.actuator_names
+
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 
 """load learner policy"""
 #policy_net = PolicyGaussian(MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
-policy_net = policy_dict[args.policy](MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
+policy_net = policy_dict[args.policy](MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), 
+                                      action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std, goal_dim=39)
 env.switch_expert(args.expert_id)
 policy_net.set_goal(env.get_goal())
 value_net = GoalValue(MLP(state_dim+39, cfg.value_hsize, cfg.value_htype))
-cp_path = f"{cfg.model_dir}/iter_{args.simulator}_{args.iter:04}.p"
+cp_path = f"{cfg.model_dir}/iter_{args.exp_name}_{args.iter:04}.p"
 logger.info('loading model from checkpoint: %s' % cp_path)
 model_cp = pickle.load(open(cp_path, "rb"))
 policy_net.load_state_dict(model_cp['policy_dict'])
@@ -111,10 +112,13 @@ class MyVisulizer(Visualizer):
                     action = policy_net.select_action(state_var, mean_action=True)[0].cpu().numpy()
                 actions.append(action)
                 next_state, reward, done, _ = env.step(action)
+                if args.render_nimble:
+                    env.render_nimble()
+                print("t:",t)
                 if running_state is not None:
                     next_state = running_state(next_state, update=False)
                 if done:
-                    break
+                    pass
                 state = next_state
             if action_saved == False and self.stored_actions is None:
                 np.save("moe_actions.npy", actions)
@@ -127,6 +131,7 @@ class MyVisulizer(Visualizer):
 
     def update_pose(self):
         model = env.mj_model if args.simulator == "nimble" else env.model
+        #print("env_vis:", self.env_vis.data.qpos.shape)
         self.env_vis.data.qpos[:model.nq] = self.data['pred'][self.fr]
         self.env_vis.data.qpos[model.nq:] = self.data['gt'][self.fr]
         self.env_vis.data.qpos[model.nq] += 1.0

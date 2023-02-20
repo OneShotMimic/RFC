@@ -5,7 +5,7 @@ from khrylib.utils.math import *
 
 
 class GatingFunction(nn.Module):
-    def __init__(self, state_dim, goal_dim, num_primitives=8):
+    def __init__(self, state_dim, goal_dim, num_primitives=5):
         super(GatingFunction, self).__init__()
         self.sn1 = nn.Linear(state_dim, 512)
         self.sn2 = nn.Linear(512, 256)
@@ -22,7 +22,7 @@ class GatingFunction(nn.Module):
         axis = 1 if state.dim() == 2 else 0
         h = torch.cat((s, g), axis=axis)
         h = self.bottleneck(h).relu()
-        return self.out(h).sigmoid()
+        return self.out(h).softmax(dim=1)
 
 class MCPPolicyGaussian(Policy):
     def __init__(self, net, action_dim, net_out_dim=None, log_std=0, fix_std=False, num_primitives=8, goal_dim=39,summarize_w=False):

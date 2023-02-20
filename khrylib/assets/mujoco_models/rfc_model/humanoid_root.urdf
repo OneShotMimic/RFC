@@ -114,6 +114,20 @@
 			</geometry>
 		</visual>
 	</link>
+	<link name="link1_9">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.001"/>
+			<inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+		</inertial>
+	</link>
+	<link name="link1_10">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.001"/>
+			<inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+		</inertial>
+	</link>
 	<link name="lfoot">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
@@ -121,19 +135,19 @@
 			<inertia ixx="0.00547" ixy="0" ixz="0" iyy="0.00248" iyz="0" izz="0.00642"/>
 		</inertial>
 		<collision>
-			<origin rpy="0.00000 -0.34897 0.00000" xyz="0.00570 -0.0 -0.01210"/>
+			<origin rpy="0.00000 -0.34897 0.00000" xyz="0.00570 -0.04960 -0.01210"/>
 			<geometry>
-				<!-- <box size="0.12000 0.21400 0.04800"/> -->
+				<box size="0.12000 0.21400 0.04800"/>
 				<!-- <box size="0.16000 0.31400 0.04800"/> -->
-				<sphere radius="0.08"/>
+				<!-- <sphere radius="0.08"/> -->
 			</geometry>
 		</collision>
 		<visual>
-			<origin rpy="0.00000 -0.34897 0.00000" xyz="0.00570 -0.0 -0.01210"/>
+			<origin rpy="0.00000 -0.34897 0.00000" xyz="0.00570 -0.04960 -0.01210"/>
 			<geometry>
-				<!-- <box size="0.12000 0.21400 0.04800"/> -->
+				<box size="0.12000 0.21400 0.04800"/>
 				<!-- <box size="0.16000 0.31400 0.04800"/> -->
-				<sphere radius="0.08"/>
+				<!-- <sphere radius="0.08"/> -->
 			</geometry>
 		</visual>
 	</link>
@@ -196,6 +210,20 @@
 			</geometry>
 		</visual>
 	</link>
+	<link name="link1_20">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.001"/>
+			<inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+		</inertial>
+	</link>
+	<link name="link1_21">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.001"/>
+			<inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+		</inertial>
+	</link>
 	<link name="rfoot">
 		<inertial>
 			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
@@ -203,19 +231,19 @@
 			<inertia ixx="0.00547" ixy="0" ixz="0" iyy="0.00248" iyz="0" izz="0.00642"/>
 		</inertial>
 		<collision>
-			<origin rpy="0.00000 0.34897 0.00000" xyz="-0.00570 -0.0 -0.01210"/>
+			<origin rpy="0.00000 0.34897 0.00000" xyz="-0.00570 -0.04960 -0.01210"/>
 			<geometry>
-				<!-- <box size="0.12000 0.21400 0.04800"/> -->
+				<box size="0.12000 0.21400 0.04800"/>
 				<!-- <box size="0.16000 0.31400 0.04800"/> -->
-				<sphere radius="0.08"/>
+				<!-- <sphere radius="0.08"/> -->
 			</geometry>
 		</collision>
 		<visual>
-			<origin rpy="0.00000 0.34897 0.00000" xyz="-0.00570 -0.0 -0.01210"/>
+			<origin rpy="0.00000 0.34897 0.00000" xyz="-0.00570 -0.04960 -0.01210"/>
 			<geometry>
-				<!-- <box size="0.12000 0.21400 0.04800"/> -->
+				<box size="0.12000 0.21400 0.04800"/>
 				<!-- <box size="0.16000 0.31400 0.04800"/> -->
-				<sphere radius="0.08"/>
+				<!-- <sphere radius="0.08"/> -->
 			</geometry>
 		</visual>
 	</link>
@@ -607,12 +635,29 @@
 		<axis xyz="0.93970 0.00000 0.34200"/>
 		<limit effort="0" velocity="100.0" lower="-0.2" upper="2.97"/>
 	</joint>
-	<joint name="lfoot_fixed" type="fixed" >
+	<joint name="lfoot_z" type="revolute" >
 		<parent link="ltibia"/>
-		<child link="lfoot"/>
+		<child link="link1_9"/>
 		<dynamics damping="1.0" friction="0.0001"/>
 		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.13830 0.00000 -0.38000"/>
 		<axis xyz="-0.34200 0.00000 0.93970"/>
+		<limit effort="0" velocity="100.0" lower="-0.349" upper="1.22"/>
+	</joint>
+	<joint name="lfoot_y" type="revolute" >
+		<parent link="link1_9"/>
+		<child link="link1_10"/>
+		<dynamics damping="1.0" friction="0.0001"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.00000 -1.00000 0.00000"/>
+		<limit effort="0" velocity="100.0" lower="-0.785" upper="0.785"/>
+	</joint>
+	<joint name="lfoot_x" type="revolute" >
+		<parent link="link1_10"/>
+		<child link="lfoot"/>
+		<dynamics damping="1.0" friction="0.0001"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.93970 0.00000 0.34200"/>
+		<limit effort="0" velocity="100.0" lower="-0.785" upper="1.57"/>
 	</joint>
 	<joint name="jointfix_7_0" type="fixed">
 		<parent link="root"/>
@@ -652,12 +697,29 @@
 		<axis xyz="0.93970 0.00000 -0.34200"/>
 		<limit effort="0" velocity="100.0" lower="-0.2" upper="2.97"/>
 	</joint>
-	<joint name="rfoot_fixed" type="fixed" >
+	<joint name="rfoot_z" type="revolute" >
 		<parent link="rtibia"/>
-		<child link="rfoot"/>
+		<child link="link1_20"/>
 		<dynamics damping="1.0" friction="0.0001"/>
 		<origin rpy="0.00000 -0.00000 0.00000" xyz="-0.13830 0.00000 -0.38000"/>
 		<axis xyz="0.34200 0.00000 0.93970"/>
+		<limit effort="0" velocity="100.0" lower="-0.349" upper="1.22"/>
+	</joint>
+	<joint name="rfoot_y" type="revolute" >
+		<parent link="link1_20"/>
+		<child link="link1_21"/>
+		<dynamics damping="1.0" friction="0.0001"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.00000 -1.00000 0.00000"/>
+		<limit effort="0" velocity="100.0" lower="-0.785" upper="0.785"/>
+	</joint>
+	<joint name="rfoot_x" type="revolute" >
+		<parent link="link1_21"/>
+		<child link="rfoot"/>
+		<dynamics damping="1.0" friction="0.0001"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="0.93970 0.00000 -0.34200"/>
+		<limit effort="0" velocity="100.0" lower="-0.785" upper="1.57"/>
 	</joint>
 	<joint name="jointfix_21_0" type="fixed">
 		<parent link="root"/>

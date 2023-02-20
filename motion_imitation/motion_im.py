@@ -12,8 +12,7 @@ from khrylib.rl.agents import AgentPPO
 from khrylib.models.mlp import MLP
 from torch.utils.tensorboard import SummaryWriter
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-#from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
-from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
+#from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
 
@@ -25,10 +24,6 @@ def main_loop(args):
     dtype = torch.float64
     torch.set_default_dtype(dtype)
     device = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
-    #device = torch.device("cpu")
-    # TODO: (Eric) GPU seems to suffers from memory access issue, need to debug with a mechine with larger memory.
-    # if torch.cuda.is_available():
-    #     torch.cuda.set_device(args.gpu_index)
     np.random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
     tb_logger = SummaryWriter(cfg.tb_dir) if not args.render else None
@@ -38,7 +33,8 @@ def main_loop(args):
     if args.simulator == "mujoco":
         env = HumanoidEnv(cfg)
     elif args.simulator == "nimble":
-        env = HumanoidNimbleEnv(cfg)
+        raise NotImplementedError
+        #env = HumanoidNimbleEnv(cfg)
     else:
         raise NotImplementedError
     env.seed(cfg.seed)
@@ -50,7 +46,7 @@ def main_loop(args):
     policy_net = PolicyGaussian(MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
     value_net = Value(MLP(state_dim, cfg.value_hsize, cfg.value_htype))
     if args.iter > 0:
-        cp_path = '%s/iter_%04d.p' % (cfg.model_dir, args.iter)
+        cp_path = f"{cfg.model_dir}/iter_{args.load_name}_{args.iter:04}.p"
         logger.info('loading model from checkpoint: %s' % cp_path)
         model_cp = pickle.load(open(cp_path, "rb"))
         policy_net.load_state_dict(model_cp['policy_dict'])
@@ -145,5 +141,6 @@ if __name__ == "__main__":
     parser.add_argument('--simulator', type=str, default="mujoco")
     parser.add_argument('--show_noise', action='store_true', default=False)
     parser.add_argument('--exp_name', default=None, required=True, type=str)
+    parser.add_argument('--load_name',default=None, type=str)
     args = parser.parse_args()
     main_loop(args)

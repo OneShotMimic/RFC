@@ -13,7 +13,7 @@ from khrylib.rl.agents import AgentPPO
 from khrylib.models.mlp import MLP
 from torch.utils.tensorboard import SummaryWriter
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
+#from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
 
@@ -32,6 +32,10 @@ parser.add_argument('--show_noise', action='store_true', default=False)
 parser.add_argument('--change_goal_freq',type=int, default=5)
 parser.add_argument('--simulator',type=str, default="mujoco")
 parser.add_argument('--exp_name', type=str, default=None, required=True)
+parser.add_argument('--load_name', type=str, default=None)
+parser.add_argument('--load_iter', type=int, default=None)
+parser.add_argument('--collect_data', action='store_true', default=False)
+parser.add_argument('--use_wandb',action="store_true", default=False)
 args = parser.parse_args()
 if args.render:
     args.num_threads = 1
@@ -51,11 +55,12 @@ logger = create_logger(os.path.join(cfg.log_dir, 'log.txt'), file_handle=not arg
 
 """environment"""
 if args.simulator == "mujoco":
-    env = HumanoidEnv(cfg)
+    env = HumanoidEnv(cfg, filename=args.exp_name if args.collect_data else None)
 elif args.simulator == "nimble":
+    raise NotImplementedError
     env = HumanoidNimbleEnv(cfg)
 env.seed(cfg.seed)
-actuators = env.model.actuator_names
+#actuators = env.model.actuator_names
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 running_state = ZFilter((state_dim,), clip=5)
@@ -63,12 +68,12 @@ running_state = ZFilter((state_dim,), clip=5)
 """define actor and critic"""
 #policy_net = PolicyGaussian(MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std)
 policy_net = policy_dict[args.policy](MLP(state_dim, cfg.policy_hsize, cfg.policy_htype), 
-                                      action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std, goal_dim=33)
-value_net = GoalValue(MLP(state_dim+33, cfg.value_hsize, cfg.value_htype)) # 39 is goal dim
+                                      action_dim, log_std=cfg.log_std, fix_std=cfg.fix_std, goal_dim=39)
+value_net = GoalValue(MLP(state_dim+39, cfg.value_hsize, cfg.value_htype)) # 39 is goal dim
 policy_net.set_goal(env.get_goal())
 value_net.set_goal(env.get_goal())
-if args.iter > 0:
-    cp_path = f"{cfg.model_dir}/iter_{args.exp_name}_{args.iter:04}.p"
+if args.load_iter is not None:
+    cp_path = f"{cfg.model_dir}/iter_{args.load_name}_{args.load_iter:04}.p"
     logger.info('loading model from checkpoint: %s' % cp_path)
     model_cp = pickle.load(open(cp_path, "rb"))
     policy_net.load_state_dict(model_cp['policy_dict'])
@@ -107,6 +112,10 @@ def pre_iter_update(i_iter):
         policy_net.action_log_std.fill_(cfg.adp_log_std)
     return
 
+# Initialize wandb
+if args.use_wandb:
+    import wandb
+    wandb.init()
 
 def main_loop():
 
@@ -134,6 +143,13 @@ def main_loop():
                 .format(i_iter, log.sample_time, t1 - t0, get_eta_str(i_iter, cfg.max_iter_num, t1 - t0 + log.sample_time), log.avg_c_reward,
                         np.array2string(c_info, formatter={'all': lambda x: '%.4f' % x}, separator=','),
                         log.min_c_reward, log.max_c_reward, log.avg_episode_len))
+            if args.use_wandb:
+                wandb.log({
+                    "iter":i_iter,
+                    "eps_len": log.avg_episode_len,
+                    "expert_R_avg": log.avg_c_reward,
+                    "goal":agent.env.get_expert_id()
+                })
 
             tb_logger.add_scalar('total_reward', log.avg_c_reward, i_iter)
             tb_logger.add_scalar('episode_len', log.avg_episode_reward, i_iter)
@@ -160,7 +176,7 @@ def main_loop():
 
             """clean up gpu memory"""
             torch.cuda.empty_cache()
-
+        env.save_data()
         logger.info('training done!')
 
 

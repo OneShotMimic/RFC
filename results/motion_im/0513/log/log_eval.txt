@@ -1,0 +1,15 @@
+[2022-12-05 20:49:32,359] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 20:49:51,917] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 20:50:47,094] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:04:26,831] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:05:21,348] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:08:29,062] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:12:20,986] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:12:55,358] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:13:37,090] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:14:07,347] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:40:08,784] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:42:00,073] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:42:28,515] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:46:23,106] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p
+[2022-12-05 21:54:19,471] loading model from checkpoint: results/motion_im/0513/models/iter_default_1000.p

@@ -1,0 +1,2 @@
+[2022-12-05 22:54:53,410] loading model from checkpoint: results/motion_im/0205/models/iter_standing_0100.p
+[2023-01-22 11:21:20,507] loading model from checkpoint: results/motion_im/0205/models/iter_nimble_0100.p

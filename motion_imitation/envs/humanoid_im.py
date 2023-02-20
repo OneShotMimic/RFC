@@ -6,11 +6,13 @@ from khrylib.rl.envs.common import mujoco_env
 from gym import spaces
 from khrylib.utils import *
 from khrylib.utils.transformation import quaternion_from_euler
+from khrylib.nn_world.data_collector import DataCollector
 from motion_imitation.utils.tools import get_expert
 from mujoco_py import functions as mjf
 import pickle
 import time
 from scipy.linalg import cho_solve, cho_factor
+import scipy.fftpack as fftpack
 
 mujoco_joints = ['lfemur_z', 'lfemur_y', 'lfemur_x', 'ltibia_x',
                  'lfoot_z', 'lfoot_y', 'lfoot_x', 'rfemur_z', 
@@ -22,11 +24,12 @@ mujoco_joints = ['lfemur_z', 'lfemur_y', 'lfemur_x', 'ltibia_x',
                  'rclavicle_z', 'rclavicle_y', 'rhumerus_z', 'rhumerus_y', 
                  'rhumerus_x', 'rradius_x']
 
-FOOT_JOINTS = ["lfoot_x", "lfoot_y", "lfoot_z", "rfoot_x", "rfoot_y", "rfoot_z"]
+#FOOT_JOINTS = ["lfoot_x", "lfoot_y", "lfoot_z", "rfoot_x", "rfoot_y", "rfoot_z"]
+FOOT_JOINTS = []
 
 class HumanoidEnv(mujoco_env.MujocoEnv):
 
-    def __init__(self, cfg):
+    def __init__(self, cfg,filename=None):
         mujoco_env.MujocoEnv.__init__(self, cfg.mujoco_model_file, 15)
         self.cfg = cfg
         self.set_cam_first = set()
@@ -39,6 +42,7 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         self.prev_bquat = None
         self.set_model_params()
         self.expert = None
+        self.filename = filename
         print(self.model.joint_names)
         print("Number of Joints:", len(self.model.joint_names))
         print("Body Names:", self.model.body_names)
@@ -49,6 +53,8 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         print(f"Take {time.time()-ts} to load expert")
         #input("Press Enter to Continue")
         self.set_spaces()
+        if self.filename is not None:
+            self.data_recorder = DataCollector(32,32,26+self.vf_dim, self.model.opt.timestep)
 
     def setup_joint_mapping(self):
         self.mj_nonfoot = []
@@ -77,6 +83,7 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def set_spaces(self):
         cfg = self.cfg
         self.ndof = self.model.actuator_ctrlrange.shape[0]
+        print("Num of Dofs:",self.ndof)
         self.vf_dim = 0
         if cfg.residual_force:
             if cfg.residual_force_mode == 'implicit':
@@ -211,9 +218,9 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         vf *= self.cfg.residual_force_scale
         hq = get_heading_q(self.data.qpos[3:7])
         vf[:3] = quat_mul_vec(hq, vf[:3])
-        self.data.qfrc_applied[:vf.shape[0]] = vf
+        self.data.qfrc_applied[:vf.shape[0]] = vf * 0.2
 
-    def do_simulation(self, action, n_frames):
+    def do_simulation(self, action, n_frames, record_data=False):
         t0 = time.time()
         cfg = self.cfg
         for i in range(n_frames):
@@ -234,19 +241,27 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
                 else:
                     self.rfc_explicit(vf)
 
+            prev_qpos = self.data.qpos.copy()
+            prev_qvel = self.data.qvel.copy()
             self.sim.step()
+            if record_data and self.filename is not None:
+                self.data_recorder.record(prev_qpos, 
+                                          prev_qvel,
+                                          self.data.qpos.copy(),
+                                          self.data.qvel.copy(),
+                                          action.copy())
         #input("Press Enter to Continue")
         if self.viewer is not None:
             self.viewer.sim_time = time.time() - t0
 
-    def step(self, a):
+    def step(self, a, record_data=False):
         cfg = self.cfg
         # record prev state
         self.prev_qpos = self.data.qpos.copy()
         self.prev_qvel = self.data.qvel.copy()
         self.prev_bquat = self.bquat.copy()
         # do simulation
-        self.do_simulation(a, self.frame_skip)
+        self.do_simulation(a, self.frame_skip, record_data)
         self.cur_t += 1
         self.bquat = self.get_body_quat()
         self.update_expert()
@@ -322,8 +337,12 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
     def get_expert_attr(self, attr, ind):
         return self.expert[attr][ind, :]
 
+    # Consider the most significant component in frequency domain
     def get_goal(self):
-        return self.get_expert_attr("qpos", self.expert['len']-1)
+        traj = self.get_expert_attr("qpos", np.arange(self.expert["len"])).T
+        X = fftpack.fft(traj)
+        #return self.get_expert_attr("qpos", self.expert['len']-1) + X.argmax(axis=1)/X.shape[1]
+        return X.argmax(axis=1)/X.shape[1]
 
     def switch_expert(self, idx=None):
         if idx is not None:
@@ -332,3 +351,9 @@ class HumanoidEnv(mujoco_env.MujocoEnv):
         else:
             self.expert_id = (self.expert_id+1)%len(self.experts)
             self.expert = self.experts[self.expert_id]
+    
+    def get_expert_id(self):
+        return self.expert_id
+
+    def save_data(self):
+        self.data_recorder.save_data(self.filename)

@@ -1,0 +1,10 @@
+[2023-02-20 13:25:52,819] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1200.p
+[2023-02-20 13:26:06,675] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1200.p
+[2023-02-20 13:26:47,216] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1300.p
+[2023-02-20 23:20:02,559] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1500.p
+[2023-02-20 23:20:22,264] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1600.p
+[2023-02-20 23:20:41,754] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1400.p
+[2023-02-20 23:20:57,122] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1500.p
+[2023-02-20 23:21:31,152] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_2000.p
+[2023-02-20 23:21:46,567] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_2000.p
+[2023-02-20 23:22:02,215] loading model from checkpoint: results/motion_im/02/models/iter_mul_5_fft_1400.p

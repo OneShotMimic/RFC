@@ -13,13 +13,11 @@ from khrylib.rl.core.policy_gaussian import PolicyGaussian
 from khrylib.rl.core.critic import Value
 from khrylib.models.mlp import MLP
 from motion_imitation.envs.humanoid_im import HumanoidEnv
-#from motion_imitation.envs.humanoid_im_dflex import HumanoidDFlexEnv
-from motion_imitation.envs.humanoid_im_nimble import HumanoidNimbleEnv
 from motion_imitation.utils.config import Config
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None)
-parser.add_argument('--vis_model_file', default='mocap_v3_vis')
+parser.add_argument('--vis_model_file', default='mocap_v2_vis')
 parser.add_argument('--iter', type=int, default=-1)
 parser.add_argument('--focus', action='store_true', default=True)
 parser.add_argument('--hide_expert', action='store_true', default=False)
@@ -44,7 +42,8 @@ torch.set_grad_enabled(False)
 if args.simulator == "mujoco":
     env = HumanoidEnv(cfg)
 elif args.simulator == "nimble":
-    env = HumanoidNimbleEnv(cfg, disable_nimble_visualizer = not args.render_nimble)
+    raise NotImplementedError
+    #env = HumanoidNimbleEnv(cfg, disable_nimble_visualizer = not args.render_nimble)
 env.seed(cfg.seed)
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
@@ -118,6 +117,7 @@ class MyVisulizer(Visualizer):
 
     def update_pose(self):
         model = env.mj_model if args.simulator == "nimble" else env.model
+        print("env_vis:", self.env_vis.data.qpos.shape)
         self.env_vis.data.qpos[:model.nq] = self.data['pred'][self.fr]
         self.env_vis.data.qpos[model.nq:] = self.data['gt'][self.fr]
         self.env_vis.data.qpos[model.nq] += 1.0

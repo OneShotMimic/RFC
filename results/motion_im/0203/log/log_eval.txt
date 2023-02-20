@@ -1,0 +1,7 @@
+[2022-11-15 11:00:48,854] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1500.p
+[2022-11-15 11:01:15,439] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1500.p
+[2022-11-15 11:02:00,535] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1540.p
+[2022-11-15 11:02:27,382] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1040.p
+[2022-11-15 11:02:46,762] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1240.p
+[2022-11-15 11:03:03,856] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1140.p
+[2022-11-15 11:03:18,418] loading model from checkpoint: results/motion_im/0203/models/iter_run_0.2_1040.p

@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--render', action='store_true', default=False)
 parser.add_argument('--amc_id', type=str, default=None)
 parser.add_argument('--out_id', type=str, default=None)
-parser.add_argument('--model_file', type=str, default="mocap_v2")
+parser.add_argument('--model_file', type=str, default="rfc_humanoid_debug")
 parser.add_argument('--mocap_fr', type=int, default=120)
 parser.add_argument('--scale', type=float, default=0.45)
 parser.add_argument('--dt', type=float, default=1/30.0)
@@ -132,6 +132,8 @@ def visualize():
             T = max(1, T * 1.5)
         elif key == glfw.KEY_F:
             T = max(1, T / 1.5)
+        elif key == glfw.KEY_L:
+            cyclic = True
         elif key == glfw.KEY_RIGHT:
             fr = (fr + 1) % expert_traj.shape[0]
             print(fr)
@@ -158,12 +160,16 @@ def visualize():
     viewer.cam.distance = 5.0
     viewer.cam.lookat[2] = 1.0
     t = 0
+    #offset_zs = np.linspace(-0.05,-0.12,len(expert_traj))
+    offset_zs = np.linspace(0, 0, len(expert_traj))
+    expert_traj[:,2] += offset_zs
     while not stop:
         if t >= math.floor(T):
             fr = (fr+1) % expert_traj.shape[0]
             t = 0
+        #expert_traj[fr,2] += offset_zs[fr]
         sim.data.qpos[:] = expert_traj[fr]
-        sim.data.qpos[2] += offset_z
+        sim.data.qpos[2] += offset_z#s[fr]
         sim.forward()
         viewer.cam.lookat[:2] = sim.data.qpos[:2]
         viewer.render()

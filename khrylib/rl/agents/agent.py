@@ -55,7 +55,7 @@ class Agent:
                 mean_action = self.mean_action or env.np_random.binomial(1, 1 - self.noise_rate)
                 action = self.policy_net.select_action(trans_out, mean_action)[0].numpy()
                 action = int(action) if self.policy_net.type == 'discrete' else action.astype(np.float64)
-                next_state, env_reward, done, info = env.step(action)
+                next_state, env_reward, done, info = env.step(action, record_data=True if pid==0 else False)
                 #print("Next state shape:",next_state.shape)
                 if self.running_state is not None:
                     next_state = self.running_state(next_state)

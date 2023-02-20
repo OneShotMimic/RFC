@@ -36,10 +36,12 @@ nimble_joints = ['upperback_z','upperback_y','upperback_x','lowerneck_z',
                  'lhumerus_z','lhumerus_y','lhumerus_x','lradius_x',
                  'rclavicle_z','rclavicle_y','rhumerus_z','rhumerus_y',
                  'rhumerus_x','rradius_x','lfemur_z','lfemur_y','lfemur_x',
-                 'ltibia_x','rfemur_z','rfemur_y',
-                 'rfemur_x','rtibia_x']
+                 'ltibia_x','lfoot_z','lfoot_y','lfoot_x',
+                 'rfemur_z','rfemur_y','rfemur_x','rtibia_x',
+                 'rfoot_z','rfoot_y','rfoot_x']
 
-FOOT_JOINTS = ["lfoot_x", "lfoot_y", "lfoot_z", "rfoot_x", "rfoot_y", "rfoot_z"]
+#FOOT_JOINTS = ["lfoot_x", "lfoot_y", "lfoot_z", "rfoot_x", "rfoot_y", "rfoot_z"]
+FOOT_JOINTS = []
 
 class NimbleEnv:
     """Superclass for all MuJoCo environments.
@@ -62,9 +64,9 @@ class NimbleEnv:
         for i in range(self.robot.getNumJoints()):
             print(self.robot.getJoint(i).getName())
             if i > 6: # Except root joint
-                self.robot.getJoint(i).setDampingCoefficient(0, 0)
+                self.robot.getJoint(i).setDampingCoefficient(0, 0.1)
                 #self.robot.getJoint(i).setSpringStiffness(0, 5)
-                self.robot.getJoint(i).setPositionLimitEnforced(True)
+                #self.robot.getJoint(i).setPositionLimitEnforced(True)
         # Set Body Node friction
         self.robot.getBodyNode("lfoot").setFrictionCoeff(20.0)
         self.robot.getBodyNode("rfoot").setFrictionCoeff(20.0)
@@ -88,7 +90,7 @@ class NimbleEnv:
         self.observation_space = None
         self.np_random = None
         self.cur_t = 0  # number of steps taken
-        self.current_control_force = np.zeros(32)
+        self.current_control_force = np.zeros(len(self.n2m)+6)
         self.mj_dirty_bit = False
 
         self.metadata = {
@@ -110,8 +112,8 @@ class NimbleEnv:
 
     def setup_joint_mapping(self):
         #self.m2n_foot = [mujoco_joints.index(nimble_joints[i]) for i in range(len(nimble_joints))]
-        self.m2n = [mujoco_joints_no_foot.index(nimble_joints[i]) for i in range(len(nimble_joints))]
-        self.n2m = [nimble_joints.index(mujoco_joints_no_foot[i]) for i in range(len(mujoco_joints_no_foot))]
+        self.m2n = [mujoco_joints.index(nimble_joints[i]) for i in range(len(nimble_joints))]
+        self.n2m = [nimble_joints.index(mujoco_joints[i]) for i in range(len(mujoco_joints))]
         self.mj_nonfoot = []
         for i in range(len(mujoco_joints)):
             if mujoco_joints[i] not in FOOT_JOINTS:
@@ -122,7 +124,7 @@ class NimbleEnv:
             quat = pos[3:7]
             rot = pk.matrix_to_euler_angles(pk.quaternion_to_matrix(torch.from_numpy(quat)),convention="XYZ").numpy()
             pose = pos[:3].copy()
-            pose[2] += 0.1
+            pose[2] += 0.2
             nimble_pos = np.hstack([pose, rot, pos[7:][self.m2n]])
         if vel is not None:
             nimble_vel = np.hstack([vel[:3], vel[3:6], vel[6:][self.m2n]])
@@ -144,10 +146,10 @@ class NimbleEnv:
         vel = state[int(len(state)/2):]
         # Seems to be ambiguous
         rot = pk.matrix_to_quaternion(pk.euler_angles_to_matrix(pos[3:6], convention="XYZ")).numpy()
-        joint_pos = np.zeros(26)
+        joint_pos = np.zeros(len(self.n2m))
         joint_pos = pos[6:][self.n2m]
         mujoco_pos = np.hstack([pos[:3], rot, joint_pos])
-        joint_vel = np.zeros(26)
+        joint_vel = np.zeros(len(self.n2m))
         joint_vel = vel[6:][self.n2m]
         mujoco_vel = np.hstack([vel[:3], vel[3:6], joint_vel])
         return mujoco_pos, mujoco_vel
