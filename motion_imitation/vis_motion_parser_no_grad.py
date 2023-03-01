@@ -11,13 +11,15 @@ from khrylib.utils import *
 from khrylib.rl.utils.visualizer import Visualizer
 from khrylib.rl.core.policy_mcp_gaussian import MCPPolicyGaussian
 from khrylib.rl.core.policy_additive_gaussian import AdditivePolicyGaussian
+from khrylib.rl.core.policy_split import SplitPolicyGaussian
 from khrylib.motion_parser.models import DummyMotionParser
 from khrylib.models.mlp import MLP
 from motion_imitation.envs.humanoid_im import HumanoidEnv
 from motion_imitation.utils.config import Config
 
 policy_dict = {"multiplicative":MCPPolicyGaussian,
-               "additive":AdditivePolicyGaussian}
+               "additive":AdditivePolicyGaussian,
+               "split":SplitPolicyGaussian}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None)

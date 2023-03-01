@@ -6,4 +6,5 @@ from khrylib.rl.core.policy import Policy
 from khrylib.rl.core.policy_disc import PolicyDiscrete
 from khrylib.rl.core.policy_gaussian import PolicyGaussian
 from khrylib.rl.core.policy_mcp_gaussian import MCPPolicyGaussian
+from khrylib.rl.core.policy_split import SplitPolicyGaussian
 from khrylib.rl.core.trajbatch import TrajBatch

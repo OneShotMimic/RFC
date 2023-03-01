@@ -8,6 +8,7 @@ sys.path.append(os.getcwd())
 from khrylib.utils import *
 from khrylib.rl.core.policy_mcp_gaussian import MCPPolicyGaussian
 from khrylib.rl.core.policy_additive_gaussian import AdditivePolicyGaussian
+from khrylib.rl.core.policy_split import SplitPolicyGaussian
 from khrylib.rl.core.critic import GoalValue
 from khrylib.rl.agents import AgentPPO
 from khrylib.models.mlp import MLP
@@ -18,7 +19,8 @@ from motion_imitation.utils.config import Config
 from motion_imitation.reward_function import reward_func
 
 policy_dict = {"multiplicative":MCPPolicyGaussian,
-               "additive":AdditivePolicyGaussian}
+               "additive":AdditivePolicyGaussian,
+               "split":SplitPolicyGaussian}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cfg', default=None)
@@ -109,7 +111,11 @@ def pre_iter_update(i_iter):
     agent.set_noise_rate(cfg.adp_noise_rate)
     set_optimizer_lr(optimizer_policy, cfg.adp_policy_lr)
     if cfg.fix_std:
-        policy_net.action_log_std.fill_(cfg.adp_log_std)
+        if args.policy != "split":
+            policy_net.action_log_std.fill_(cfg.adp_log_std)
+        else:
+            policy_net.action_log_std_ub.fill_(cfg.adp_log_std)
+            policy_net.action_log_std_lb.fill_(cfg.adp_log_std)
     return
 
 # Initialize wandb
